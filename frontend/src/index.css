@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* small helper to ensure body uses Tailwind font stack */
+body { @apply bg-slate-50; }
