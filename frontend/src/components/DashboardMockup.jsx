@@ -1,17 +1,66 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
+import FileUpload from './FileUpload';
 
 export default function DashboardMockup() {
+  const { user, logout } = useAuth();
+  const [transactions, setTransactions] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+
+  // Load initial data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [transactionsData, categoriesData] = await Promise.all([
+          api.transactions.getTransactions({ limit: 4 }),
+          api.categories.getCategories(),
+        ]);
+        
+        setTransactions(transactionsData || []);
+        setCategories(categoriesData || []);
+      } catch (err) {
+        setError('Failed to load data');
+        console.error('Error loading data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Handle successful file upload
+  const handleUploadSuccess = async (result) => {
+    console.log('Upload successful:', result);
+    // Reload transactions to show newly imported data
+    try {
+      const transactionsData = await api.transactions.getTransactions({ limit: 4 });
+      setTransactions(transactionsData || []);
+    } catch (err) {
+      console.error('Error reloading transactions:', err);
+    }
+  };
   return (
     <div className="min-h-screen bg-slate-50 p-8 font-sans">
       <div className="max-w-7xl mx-auto">
         <header className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-semibold">Shared Finance — Dashboard</h1>
-            <p className="text-sm text-slate-500">Combined view • You + Partner</p>
+            <p className="text-sm text-slate-500">Welcome back, {user?.user_email || user?.email || 'User'}</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="px-4 py-2 bg-white border rounded-lg text-sm">Settings</button>
             <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">Invite Partner</button>
+            <button 
+              onClick={logout}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+            >
+              Logout
+            </button>
             <img src="https://avatars.dicebear.com/api/micah/user.svg" alt="avatar" className="w-10 h-10 rounded-full" />
           </div>
         </header>
@@ -46,7 +95,12 @@ export default function DashboardMockup() {
             <div className="bg-white p-4 rounded-2xl shadow-sm">
               <h3 className="text-sm font-medium mb-2">Quick Actions</h3>
               <div className="flex gap-2">
-                <button className="px-3 py-2 border rounded-lg text-sm">Upload PDF</button>
+                <button 
+                  onClick={() => setShowFileUpload(true)}
+                  className="px-3 py-2 border rounded-lg text-sm hover:bg-indigo-50 hover:border-indigo-300"
+                >
+                  Upload PDF
+                </button>
                 <button className="px-3 py-2 border rounded-lg text-sm">Add Income</button>
                 <button className="px-3 py-2 border rounded-lg text-sm">New Goal</button>
               </div>
@@ -95,10 +149,30 @@ export default function DashboardMockup() {
                 </tr>
               </thead>
               <tbody>
-                <TransactionRow date="2025-08-05" desc="WholeMart - Groceries" cat="Groceries" amt="-72.20" who="You" />
-                <TransactionRow date="2025-08-03" desc="Salary - Employer" cat="Income" amt="+2400" who="Partner" />
-                <TransactionRow date="2025-08-01" desc="Rent Payment" cat="Rent" amt="-1600" who="Combined" />
-                <TransactionRow date="2025-07-28" desc="StreamingX" cat="Subscription" amt="-11.99" who="You" />
+                {loading ? (
+                  <tr>
+                    <td colSpan="4" className="py-8 text-center text-slate-500">
+                      Loading transactions...
+                    </td>
+                  </tr>
+                ) : transactions.length > 0 ? (
+                  transactions.map((transaction) => (
+                    <TransactionRow
+                      key={transaction.id}
+                      date={new Date(transaction.date).toLocaleDateString()}
+                      desc={transaction.description}
+                      cat={transaction.category_name || "Uncategorized"}
+                      amt={transaction.amount.toFixed(2)}
+                      who="You"
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="py-8 text-center text-slate-500">
+                      No transactions found. Try uploading a bank statement!
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
 
@@ -107,6 +181,14 @@ export default function DashboardMockup() {
             </div>
           </div>
         </section>
+
+        {/* File Upload Modal */}
+        {showFileUpload && (
+          <FileUpload
+            onUploadSuccess={handleUploadSuccess}
+            onClose={() => setShowFileUpload(false)}
+          />
+        )}
 
       </div>
     </div>

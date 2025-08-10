@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, DateTime, func, JSON, Enum as SQLAlchemyEnum
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, DateTime, func, JSON, Enum as SQLAlchemyEnum, Index
 from sqlalchemy.orm import relationship
 from enum import Enum
 
@@ -86,6 +86,15 @@ class Transaction(Base):
     category = relationship("Category", back_populates="transactions")
     user = relationship("User", back_populates="transactions")
     source_file = relationship("File", back_populates="transactions")
+    
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('ix_transactions_user_id', 'user_id'),
+        Index('ix_transactions_date', 'date'),
+        Index('ix_transactions_category_id', 'category_id'),
+        Index('ix_transactions_user_date', 'user_id', 'date'),
+        Index('ix_transactions_user_category', 'user_id', 'category_id'),
+    )
 
 class Category(Base):
     __tablename__ = 'categories'
@@ -109,6 +118,13 @@ class Income(Base):
     
     # Relationships
     user = relationship("User", back_populates="incomes")
+    
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('ix_incomes_user_id', 'user_id'),
+        Index('ix_incomes_date', 'date'),
+        Index('ix_incomes_user_date', 'user_id', 'date'),
+    )
 
 class Goal(Base):
     __tablename__ = 'goals'
@@ -122,15 +138,24 @@ class Goal(Base):
     
     # Relationships
     user = relationship("User", back_populates="goals")
+    
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('ix_goals_user_id', 'user_id'),
+        Index('ix_goals_target_date', 'target_date'),
+    )
 
 class File(Base):
     __tablename__ = 'files'
     id = Column(Integer, primary_key=True)
     household_id = Column(Integer, ForeignKey('households.id'))
     user_id = Column(Integer, ForeignKey('users.id'))
+    filename = Column(String)
+    file_size = Column(Integer)
     s3_key = Column(String)
     parsed_json_key = Column(String)
     status = Column(SQLAlchemyEnum(FileStatus))
+    uploaded_at = Column(DateTime, server_default=func.now())
     
     # Relationships
     household = relationship("Household", back_populates="files")
