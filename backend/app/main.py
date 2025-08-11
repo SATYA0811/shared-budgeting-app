@@ -36,7 +36,7 @@ from .auth import get_current_user
 from .models import User
 
 # Import all routers
-from .routers import auth_routes, transactions, categories, income, goals, analytics, files
+from .routers import auth_routes, transactions, categories, income, goals, analytics, files, partners, banks
 
 # Configure logging
 logging.basicConfig(
@@ -208,6 +208,8 @@ app.include_router(income.router, tags=["Income"])
 app.include_router(goals.router, tags=["Goals"])
 app.include_router(analytics.router, tags=["Analytics"])
 app.include_router(files.router, tags=["File Upload"])
+app.include_router(partners.router, tags=["Partners"])
+app.include_router(banks.router, tags=["Banks"])
 
 # Startup event
 @app.on_event("startup")

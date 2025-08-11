@@ -235,19 +235,31 @@ def get_budget_performance(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get budget vs actual performance for all categories with budgets."""
+    """Get budget vs actual performance for categories where user has transactions."""
     # Get current month data
     now = datetime.now()
     start_of_month = datetime(now.year, now.month, 1)
     
-    # Get categories with budgets (categories are shared, filter by user's transactions)
-    categories_with_budgets = db.query(Category).filter(
+    # Check if user has any transactions at all
+    user_has_transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id
+    ).first() is not None
+    
+    # For new users with no transactions, return empty result to avoid showing "predefined data"
+    if not user_has_transactions:
+        return []
+    
+    # Get categories with budgets that the user has actually used
+    categories_with_spending = db.query(
+        Category.id, Category.name, Category.default_budget
+    ).join(Transaction).filter(
+        Transaction.user_id == current_user.id,
         Category.default_budget.isnot(None),
         Category.default_budget > 0
-    ).all()
+    ).distinct().all()
     
     result = []
-    for category in categories_with_budgets:
+    for category in categories_with_spending:
         # Get actual spending for this category this month
         actual_spending = db.query(
             func.sum(case((Transaction.amount < 0, Transaction.amount * -1), else_=0))
