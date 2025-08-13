@@ -1,6 +1,21 @@
-# Shared Budgeting Application
+# Shared Budgeting Application 🇨🇦
 
-A comprehensive full-stack budgeting application with transaction tracking, categorization, analytics, and goal management.
+A comprehensive full-stack budgeting application designed for Canadian banking with transaction tracking, categorization, analytics, and goal management.
+
+## 🚧 Development Status
+
+**This project is currently in active development (Alpha phase)**
+
+- ✅ Core backend functionality implemented
+- ✅ Multi-page frontend with React
+- ✅ User authentication and data isolation  
+- ✅ Transaction management and analytics
+- ✅ **Canadian banking integration (CIBC, RBC, TD, BMO, AMEX)**
+- ✅ **PDF/CSV bank statement parsing**
+- ✅ **CAD currency formatting and Canadian date formats**
+- 🚧 Mobile responsiveness in progress
+- 🚧 Advanced analytics features being added
+- 📋 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and upcoming features
 
 ## 🌟 Features
 
@@ -11,11 +26,14 @@ A comprehensive full-stack budgeting application with transaction tracking, cate
 - CORS and security headers
 - Input validation and sanitization
 
-### ✅ Transaction Management
+### ✅ Transaction Management 🏦
 - Manual transaction entry and editing
+- **Canadian bank statement parsing** (CIBC, RBC, TD, BMO, Scotiabank, AMEX)
 - File upload for bank statements (PDF, CSV, Excel)
+- **Enhanced parsing for Canadian date formats** (DD/MM/YYYY, YYYY/MM/DD)
 - Automatic transaction categorization with rules
 - Category management with budgets
+- **CAD currency formatting** with Canadian locale support
 
 ### ✅ Analytics & Insights
 - Spending trends and patterns over time
@@ -36,6 +54,36 @@ A comprehensive full-stack budgeting application with transaction tracking, cate
 - Health checks and monitoring endpoints
 - Docker containerization
 - Environment-based configuration
+
+## 🏦 Canadian Banking Support
+
+This application is specifically designed for Canadian banking with comprehensive support for major Canadian financial institutions:
+
+### 🇨🇦 Supported Banks
+- **CIBC** (Canadian Imperial Bank of Commerce)
+- **RBC** (Royal Bank of Canada)  
+- **TD Canada Trust**
+- **BMO** (Bank of Montreal)
+- **Scotiabank**
+- **American Express Canada**
+- **Tangerine**
+
+### 📄 Statement Parsing
+- **PDF Bank Statements** - Automatic text and table extraction
+- **CSV Exports** - Enhanced column detection for Canadian bank formats
+- **Auto-Detection** - Automatically identifies bank type and applies appropriate parsing rules
+- **Date Format Support** - Handles DD/MM/YYYY, YYYY/MM/DD, and other Canadian date formats
+
+### 💰 Currency & Formatting
+- **CAD Currency Display** - All amounts shown as `$1,234.56 CAD`
+- **Canadian Locale** - Number formatting follows Canadian standards
+- **Date Formatting** - Uses Canadian date format preferences
+
+### 🔧 File Upload Features
+- **Drag & Drop** - Easy file upload interface
+- **Multiple Formats** - Supports PDF, CSV, and Excel files
+- **Working Upload Buttons** - Fixed upload functionality in both Transactions and Banks pages
+- **Real-time Processing** - Immediate transaction parsing and import
 
 ## 🚀 Quick Start
 
@@ -149,8 +197,13 @@ For production deployment, ensure:
 - `GET /analytics/budget-performance` - Budget vs actual
 - `GET /analytics/insights` - Personalized insights
 
-### File Upload
+### File Upload 🇨🇦
 - `POST /upload-statement` - Upload bank statement (Rate limited: 20/hour)
+  - **Supports Canadian banks**: CIBC, RBC, TD Canada Trust, BMO, Scotiabank, AMEX Canada
+  - **Auto-detects bank format** and applies specialized parsing
+  - **PDF parsing** with table extraction for bank statements  
+  - **CSV parsing** with Canadian date format support (DD/MM/YYYY, YYYY/MM/DD)
+  - **Enhanced column detection** for Canadian bank CSV exports
 
 ### Health & Monitoring
 - `GET /health` - Health check endpoint
@@ -229,9 +282,19 @@ shared-budgeting-app/
 │   │   ├── database.py      # Database configuration
 │   │   ├── models.py        # SQLAlchemy models
 │   │   ├── schemas.py       # Pydantic schemas
-│   │   └── config.py        # Application settings
+│   │   ├── config.py        # Application settings
+│   │   ├── parsers/         # Canadian bank parsers 🇨🇦
+│   │   │   ├── __init__.py
+│   │   │   └── canadian_banks.py  # CIBC, RBC, TD, AMEX parsers
+│   │   └── routers/         # API route handlers
 │   ├── requirements.txt     # Python dependencies
 │   └── Dockerfile          # Docker configuration
+├── frontend/               # React frontend 🇨🇦
+│   ├── src/
+│   │   ├── components/     # Reusable components
+│   │   ├── pages/          # Application pages
+│   │   └── services/       # API integration
+│   └── package.json
 ├── docker-compose.yml      # Development compose
 ├── docker-compose.prod.yml # Production compose
 └── .env.example           # Environment template
@@ -253,6 +316,11 @@ curl -X POST "http://localhost:8000/register" \
 curl -X POST "http://localhost:8000/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "test@example.com", "password": "password123"}'
+
+# Test Canadian bank file upload
+curl -X POST "http://localhost:8000/upload-statement" \
+  -H "Authorization: Bearer <your-token>" \
+  -F "file=@path/to/cibc_statement.pdf"
 ```
 
 ## 🤝 Contributing
@@ -269,11 +337,24 @@ This project is licensed under the MIT License.
 
 ## 🔄 Version History
 
-### v1.0.0
-- Complete budgeting application with all core features
-- Production-ready deployment configuration
-- Comprehensive security and performance optimizations
-- Full API documentation and testing suite
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+
+### Latest Release: v0.4.0 (2025-08-13) 🇨🇦
+- **Canadian Banking Integration** - Full support for CIBC, RBC, TD, BMO, Scotiabank, AMEX
+- **Enhanced File Upload** - Working PDF and CSV parsing with Canadian bank formats  
+- **CAD Currency Support** - Proper Canadian dollar formatting and locale support
+- **Canadian Date Formats** - Support for DD/MM/YYYY and YYYY/MM/DD formats
+- **Specialized Bank Parsers** - Auto-detection and parsing for major Canadian banks
+- **Fixed Upload Functionality** - Resolved file upload issues in frontend
+- Multi-page frontend with React Router
+- Enhanced user data isolation
+- Comprehensive analytics and goals tracking
+
+### Current Development Phase: Alpha
+- Core functionality implemented and tested
+- User interface and API integration complete
+- Active bug fixes and feature enhancements
+- Performance optimizations ongoing
 
 ---
 

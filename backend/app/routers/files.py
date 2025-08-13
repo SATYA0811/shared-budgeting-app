@@ -33,6 +33,7 @@ from ..database import get_db
 from ..auth import get_current_user
 from ..models import User, File, FileStatus, Transaction
 from ..config import settings
+from ..parsers import parse_canadian_bank_transactions
 
 # Import parsing libraries
 import pdfplumber
@@ -65,7 +66,7 @@ def validate_file_type(filename: str) -> bool:
     return file_ext in allowed_extensions
 
 def parse_pdf_transactions(file_path: str) -> List[Dict[str, Any]]:
-    """Parse transactions from PDF file."""
+    """Parse transactions from PDF file with Canadian bank support."""
     transactions = []
     
     try:
@@ -86,7 +87,12 @@ def parse_pdf_transactions(file_path: str) -> List[Dict[str, Any]]:
     except Exception as e:
         raise ValueError(f"Error parsing PDF: {str(e)}")
     
-    # Parse text for transaction patterns
+    # First try Canadian bank parsing
+    canadian_transactions = parse_canadian_bank_transactions(text)
+    if canadian_transactions:
+        return canadian_transactions
+    
+    # Fallback to generic parsing
     lines = text.split('\n')
     date_pattern = r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b'
     amount_pattern = r'[-+]?\$?[\d,]+\.?\d*'
@@ -102,8 +108,8 @@ def parse_pdf_transactions(file_path: str) -> List[Dict[str, Any]]:
             try:
                 # Parse date
                 date_str = date_matches[0]
-                # Handle different date formats
-                for fmt in ['%m/%d/%Y', '%m/%d/%y', '%m-%d-%Y', '%m-%d-%y']:
+                # Handle different date formats including Canadian formats
+                for fmt in ['%d/%m/%Y', '%Y/%m/%d', '%m/%d/%Y', '%m/%d/%y', '%m-%d-%Y', '%m-%d-%y', '%d-%m-%Y']:
                     try:
                         transaction_date = datetime.strptime(date_str, fmt)
                         break
@@ -120,7 +126,7 @@ def parse_pdf_transactions(file_path: str) -> List[Dict[str, Any]]:
                     try:
                         amount = float(amount_str)
                         # Determine if it's a debit or credit based on context
-                        if 'debit' in line.lower() or 'withdrawal' in line.lower():
+                        if 'debit' in line.lower() or 'withdrawal' in line.lower() or 'purchase' in line.lower():
                             amount = -abs(amount)
                         elif 'credit' in line.lower() or 'deposit' in line.lower():
                             amount = abs(amount)
@@ -170,11 +176,11 @@ def parse_csv_transactions(file_path: str) -> List[Dict[str, Any]]:
         else:
             raise ValueError("Could not read CSV file with any supported encoding")
         
-        # Common column name mappings
+        # Common column name mappings including Canadian bank formats
         column_mappings = {
-            'date': ['date', 'Date', 'DATE', 'transaction_date', 'Transaction Date'],
-            'description': ['description', 'Description', 'DESC', 'memo', 'Memo', 'details', 'Details'],
-            'amount': ['amount', 'Amount', 'AMOUNT', 'value', 'Value', 'transaction_amount', 'debit', 'credit']
+            'date': ['date', 'Date', 'DATE', 'transaction_date', 'Transaction Date', 'Transaction_Date', 'Posting Date', 'posting_date'],
+            'description': ['description', 'Description', 'DESC', 'memo', 'Memo', 'details', 'Details', 'Transaction Details', 'Payee', 'Reference'],
+            'amount': ['amount', 'Amount', 'AMOUNT', 'value', 'Value', 'transaction_amount', 'debit', 'credit', 'Debit', 'Credit', 'CAD$', 'CAD']
         }
         
         # Find actual column names
@@ -191,9 +197,20 @@ def parse_csv_transactions(file_path: str) -> List[Dict[str, Any]]:
         # Process each row
         for _, row in df.iterrows():
             try:
-                # Parse date
+                # Parse date with Canadian formats
                 date_str = str(row[actual_columns['date']])
-                transaction_date = pd.to_datetime(date_str).to_pydatetime()
+                try:
+                    transaction_date = pd.to_datetime(date_str, dayfirst=True).to_pydatetime()
+                except:
+                    # Try different Canadian date formats
+                    for fmt in ['%d/%m/%Y', '%Y/%m/%d', '%d-%m-%Y', '%Y-%m-%d']:
+                        try:
+                            transaction_date = datetime.strptime(date_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        transaction_date = pd.to_datetime(date_str).to_pydatetime()
                 
                 # Parse amount
                 amount_value = row[actual_columns['amount']]

@@ -205,7 +205,8 @@ export default function FileUpload({ onUploadSuccess, onClose }) {
 
         {/* Supported Formats */}
         <div className="mt-4 text-xs text-gray-500 text-center">
-          Supported formats: PDF bank statements, CSV files, Excel spreadsheets
+          Supported formats: PDF bank statements, CSV files, Excel spreadsheets<br/>
+          Compatible with CIBC, RBC, TD, BMO, Scotiabank, and American Express Canada
         </div>
       </div>
     </div>

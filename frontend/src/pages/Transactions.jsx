@@ -25,6 +25,7 @@ import {
   X
 } from 'lucide-react';
 import api from '../services/api';
+import FileUpload from '../components/FileUpload';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
@@ -43,6 +44,7 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [showFileUpload, setShowFileUpload] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -188,6 +190,11 @@ export default function Transactions() {
     }
   };
 
+  const handleUploadSuccess = (result) => {
+    console.log('Upload successful:', result);
+    loadData(); // Reload transactions after successful upload
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -215,7 +222,10 @@ export default function Transactions() {
             <Download className="h-4 w-4" />
             Export
           </button>
-          <button className="btn-secondary flex items-center gap-2">
+          <button 
+            onClick={() => setShowFileUpload(true)}
+            className="btn-secondary flex items-center gap-2"
+          >
             <Upload className="h-4 w-4" />
             Import
           </button>
@@ -403,6 +413,14 @@ export default function Transactions() {
           </div>
         )}
       </div>
+
+      {/* File Upload Modal */}
+      {showFileUpload && (
+        <FileUpload
+          onUploadSuccess={handleUploadSuccess}
+          onClose={() => setShowFileUpload(false)}
+        />
+      )}
     </div>
   );
 }
@@ -427,7 +445,11 @@ function TransactionRow({ transaction, categories, selected, onToggleSelect, onE
         />
       </td>
       <td className="px-6 py-4 text-sm text-gray-900">
-        {new Date(transaction.date).toLocaleDateString()}
+        {new Date(transaction.date).toLocaleDateString('en-CA', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit' 
+        })}
       </td>
       <td className="px-6 py-4">
         <div className="flex items-center">
@@ -461,7 +483,7 @@ function TransactionRow({ transaction, categories, selected, onToggleSelect, onE
         <span className={`text-sm font-semibold ${
           isExpense ? 'text-red-600' : 'text-green-600'
         }`}>
-          {isExpense ? '-' : '+'}${Math.abs(transaction.amount).toFixed(2)}
+          {isExpense ? '-' : '+'}${Math.abs(transaction.amount).toLocaleString('en-CA', { minimumFractionDigits: 2 })} CAD
         </span>
       </td>
       <td className="px-6 py-4 text-right">

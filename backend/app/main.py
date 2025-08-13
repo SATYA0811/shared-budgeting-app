@@ -93,7 +93,7 @@ app = FastAPI(
     - CORS and security headers
     - Comprehensive error handling
     """,
-    version="1.0.0",
+    version="0.4.0",
     docs_url="/docs",
     redoc_url="/redoc",
     contact={
@@ -169,7 +169,7 @@ def health_check():
     """Health check endpoint for monitoring and load balancers."""
     return {
         "status": "healthy",
-        "version": "1.0.0",
+        "version": "0.4.0",
         "environment": settings.environment
     }
 
@@ -215,7 +215,7 @@ app.include_router(banks.router, tags=["Banks"])
 @app.on_event("startup")
 async def startup_event():
     """Application startup event."""
-    logger.info(f"Starting Shared Budgeting API v1.0.0 in {settings.environment} mode")
+    logger.info(f"Starting Shared Budgeting API v0.4.0 in {settings.environment} mode")
     logger.info(f"Debug mode: {settings.debug}")
     logger.info(f"Database URL: {settings.database_url}")
     logger.info(f"CORS origins: {settings.cors_origins}")

@@ -32,6 +32,7 @@ import {
   Zap
 } from 'lucide-react';
 import api from '../services/api';
+import FileUpload from '../components/FileUpload';
 
 export default function Banks() {
   const [activeTab, setActiveTab] = useState('accounts');
@@ -41,6 +42,7 @@ export default function Banks() {
   const [dragActive, setDragActive] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [showFileUpload, setShowFileUpload] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -48,45 +50,59 @@ export default function Banks() {
 
   const loadData = async () => {
     try {
-      // Mock data - replace with actual API calls
+      // Mock data with Canadian banks - replace with actual API calls
       const accountsData = [
         {
           id: 1,
-          bankName: 'Chase Bank',
-          accountType: 'Checking',
+          bankName: 'CIBC',
+          accountType: 'Chequing',
           accountNumber: '****1234',
-          balance: 2450.30,
+          balance: 3250.75,
           lastSync: '2025-08-11T10:30:00Z',
           status: 'active',
-          logo: '🏦'
+          logo: '🏦',
+          currency: 'CAD'
         },
         {
           id: 2,
-          bankName: 'Wells Fargo',
+          bankName: 'Royal Bank of Canada (RBC)',
           accountType: 'Savings',
           accountNumber: '****5678',
-          balance: 8750.85,
+          balance: 12850.40,
           lastSync: '2025-08-11T09:15:00Z',
           status: 'active',
-          logo: '🏛️'
+          logo: '🏛️',
+          currency: 'CAD'
         },
         {
           id: 3,
-          bankName: 'Capital One',
+          bankName: 'American Express',
           accountType: 'Credit Card',
           accountNumber: '****9012',
-          balance: -1234.56,
+          balance: -2156.78,
           lastSync: '2025-08-10T16:45:00Z',
           status: 'needs_attention',
-          logo: '💳'
+          logo: '💳',
+          currency: 'CAD'
+        },
+        {
+          id: 4,
+          bankName: 'TD Canada Trust',
+          accountType: 'Chequing',
+          accountNumber: '****3456',
+          balance: 1875.50,
+          lastSync: '2025-08-10T14:20:00Z',
+          status: 'active',
+          logo: '🏦',
+          currency: 'CAD'
         }
       ];
 
       const filesData = [
         {
           id: 1,
-          fileName: 'chase_statement_july_2025.pdf',
-          bankName: 'Chase Bank',
+          fileName: 'cibc_statement_july_2025.pdf',
+          bankName: 'CIBC',
           uploadDate: '2025-08-10T14:30:00Z',
           fileSize: '2.3 MB',
           status: 'processed',
@@ -95,8 +111,8 @@ export default function Banks() {
         },
         {
           id: 2,
-          fileName: 'wells_fargo_june_2025.pdf',
-          bankName: 'Wells Fargo',
+          fileName: 'rbc_statement_june_2025.pdf',
+          bankName: 'Royal Bank of Canada (RBC)',
           uploadDate: '2025-08-09T11:20:00Z',
           fileSize: '1.8 MB',
           status: 'processing',
@@ -105,19 +121,18 @@ export default function Banks() {
         },
         {
           id: 3,
-          fileName: 'credit_card_statement.pdf',
-          bankName: 'Capital One',
+          fileName: 'amex_statement_july_2025.pdf',
+          bankName: 'American Express',
           uploadDate: '2025-08-08T09:45:00Z',
           fileSize: '1.2 MB',
-          status: 'error',
-          transactionsFound: 0,
-          error: 'Unable to parse PDF format',
+          status: 'processed',
+          transactionsFound: 32,
           type: 'credit_statement'
         },
         {
           id: 4,
-          fileName: 'transactions_export.csv',
-          bankName: 'Manual Upload',
+          fileName: 'td_transactions_export.csv',
+          bankName: 'TD Canada Trust',
           uploadDate: '2025-08-07T16:10:00Z',
           fileSize: '456 KB',
           status: 'processed',
@@ -156,8 +171,14 @@ export default function Banks() {
   };
 
   const handleFileUpload = (files) => {
-    // Handle file upload logic
-    console.log('Uploading files:', files);
+    if (files && files.length > 0) {
+      setShowFileUpload(true);
+    }
+  };
+
+  const handleUploadSuccess = (result) => {
+    console.log('Upload successful:', result);
+    loadData(); // Reload data after successful upload
   };
 
   const toggleFileSelection = (fileId) => {
@@ -354,6 +375,12 @@ export default function Banks() {
                   >
                     Choose Files
                   </label>
+                  <button
+                    onClick={() => setShowFileUpload(true)}
+                    className="btn-secondary"
+                  >
+                    Upload Statement
+                  </button>
                   <span className="text-sm text-gray-500">or drag and drop</span>
                 </div>
               </div>
@@ -400,11 +427,13 @@ export default function Banks() {
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="text-lg font-semibold mb-4">Bank Integration Status</h3>
               <div className="space-y-4">
-                <IntegrationStatus bank="Chase Bank" status="connected" />
-                <IntegrationStatus bank="Wells Fargo" status="connected" />
-                <IntegrationStatus bank="Capital One" status="error" />
-                <IntegrationStatus bank="Bank of America" status="available" />
-                <IntegrationStatus bank="Citi Bank" status="available" />
+                <IntegrationStatus bank="CIBC" status="connected" />
+                <IntegrationStatus bank="Royal Bank of Canada (RBC)" status="connected" />
+                <IntegrationStatus bank="American Express Canada" status="connected" />
+                <IntegrationStatus bank="TD Canada Trust" status="error" />
+                <IntegrationStatus bank="Bank of Montreal (BMO)" status="available" />
+                <IntegrationStatus bank="Scotiabank" status="available" />
+                <IntegrationStatus bank="Tangerine" status="available" />
               </div>
             </div>
 
@@ -431,6 +460,14 @@ export default function Banks() {
           </div>
         )}
       </div>
+
+      {/* File Upload Modal */}
+      {showFileUpload && (
+        <FileUpload
+          onUploadSuccess={handleUploadSuccess}
+          onClose={() => setShowFileUpload(false)}
+        />
+      )}
     </div>
   );
 }
@@ -478,14 +515,20 @@ function BankAccountCard({ account }) {
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">Balance</span>
           <span className={`font-semibold ${account.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            ${Math.abs(account.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {account.balance >= 0 ? '' : '-'}${Math.abs(account.balance).toLocaleString('en-CA', { minimumFractionDigits: 2 })} {account.currency || 'CAD'}
           </span>
         </div>
         
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">Last Sync</span>
           <span className="text-sm text-gray-900">
-            {new Date(account.lastSync).toLocaleString()}
+            {new Date(account.lastSync).toLocaleString('en-CA', {
+              year: 'numeric',
+              month: '2-digit', 
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
           </span>
         </div>
       </div>
@@ -546,7 +589,11 @@ function FileRow({ file, selected, onSelect }) {
                 <span className="mx-2">•</span>
                 <span>{file.fileSize}</span>
                 <span className="mx-2">•</span>
-                <span>{new Date(file.uploadDate).toLocaleDateString()}</span>
+                <span>{new Date(file.uploadDate).toLocaleDateString('en-CA', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit'
+                })}</span>
               </div>
               {file.error && (
                 <p className="text-sm text-red-600 mt-1">{file.error}</p>
