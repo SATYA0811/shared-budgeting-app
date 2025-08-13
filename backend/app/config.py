@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     
     # CORS
-    cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"]
     
     # File Upload
     max_file_size: int = 10 * 1024 * 1024  # 10MB
