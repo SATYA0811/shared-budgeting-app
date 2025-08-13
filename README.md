@@ -105,14 +105,14 @@ This application is specifically designed for Canadian banking with comprehensiv
 
 3. **Start the backend server**
    ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
    ```
 
-4. **Frontend Setup** (if available)
+4. **Frontend Setup**
    ```bash
    cd ../frontend
    npm install
-   npm start
+   npm run dev  # Frontend runs on http://localhost:5174
    ```
 
 ### Using Docker
@@ -132,8 +132,8 @@ This application is specifically designed for Canadian banking with comprehensiv
 ## 📖 API Documentation
 
 Once the server is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:8001/docs
+- **ReDoc**: http://localhost:8001/redoc
 
 ## 🔧 Configuration
 
@@ -152,7 +152,7 @@ SECRET_KEY=your-very-secure-secret-key-here-min-32-chars
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # URLs
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+CORS_ORIGINS=http://localhost:5174,http://127.0.0.1:5174
 ```
 
 ### Production Deployment
@@ -305,20 +305,20 @@ shared-budgeting-app/
 Run the application and test endpoints:
 ```bash
 # Test health check
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 
 # Register a user
-curl -X POST "http://localhost:8000/register" \
+curl -X POST "http://localhost:8001/register" \
   -H "Content-Type: application/json" \
   -d '{"name": "Test User", "email": "test@example.com", "password": "password123"}'
 
 # Login
-curl -X POST "http://localhost:8000/login" \
+curl -X POST "http://localhost:8001/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "test@example.com", "password": "password123"}'
 
 # Test Canadian bank file upload
-curl -X POST "http://localhost:8000/upload-statement" \
+curl -X POST "http://localhost:8001/upload-statement" \
   -H "Authorization: Bearer <your-token>" \
   -F "file=@path/to/cibc_statement.pdf"
 ```
