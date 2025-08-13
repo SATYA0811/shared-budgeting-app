@@ -31,7 +31,7 @@ from slowapi.util import get_remote_address
 
 from ..database import get_db
 from ..auth import get_current_user
-from ..models import User, File, FileStatus, Transaction
+from ..models import User, File, FileStatus, Transaction, Category
 from ..config import settings
 from ..parsers import parse_canadian_bank_transactions
 
@@ -327,14 +327,57 @@ def parse_csv_transactions_from_dataframe(df) -> List[Dict[str, Any]]:
     
     return transactions
 
+def auto_categorize_transaction(description: str, amount: float, db: Session) -> int:
+    """Auto-categorize transaction based on description and amount."""
+    description_lower = description.lower()
+    
+    # Define categorization rules
+    category_rules = {
+        'groceries': ['grocery', 'supermarket', 'food', 'loblaws', 'metro', 'sobeys', 'walmart'],
+        'food & dining': ['restaurant', 'coffee', 'tim hortons', 'starbucks', 'mcdonald', 'pizza', 'cafe'],
+        'transportation': ['gas station', 'petro', 'shell', 'esso', 'transit', 'uber', 'taxi', 'parking'],
+        'shopping': ['purchase', 'amazon', 'store', 'mall', 'shop'],
+        'bills & utilities': ['bank fee', 'service charge', 'utility', 'hydro', 'rogers', 'bell', 'telus'],
+        'entertainment': ['movie', 'entertainment', 'spotify', 'netflix', 'game'],
+        'healthcare': ['pharmacy', 'medical', 'hospital', 'dental', 'doctor'],
+        'travel': ['hotel', 'airline', 'flight', 'booking'],
+        'personal care': ['salon', 'spa', 'cosmetic'],
+        'education': ['school', 'university', 'course', 'tuition']
+    }
+    
+    # Check for income patterns (positive amounts)
+    if amount > 0:
+        income_keywords = ['salary', 'deposit', 'payment', 'refund', 'transfer', 'income']
+        if any(keyword in description_lower for keyword in income_keywords):
+            # For income, we don't categorize or create an "Income" category
+            return None
+    
+    # Find matching category
+    for category_name, keywords in category_rules.items():
+        if any(keyword in description_lower for keyword in keywords):
+            category = db.query(Category).filter(Category.name.ilike(f'%{category_name}%')).first()
+            if category:
+                return category.id
+    
+    # Default to uncategorized
+    return None
+
 def store_transactions(transactions: List[Dict[str, Any]], user_id: int, file_id: int, db: Session):
-    """Store parsed transactions in database."""
+    """Store parsed transactions in database with auto-categorization."""
     for transaction_data in transactions:
         try:
+            # Auto-categorize the transaction
+            category_id = auto_categorize_transaction(
+                transaction_data['description'], 
+                float(transaction_data['amount']), 
+                db
+            )
+            
             transaction = Transaction(
                 date=transaction_data['date'],
                 description=transaction_data['description'],
                 amount=transaction_data['amount'],
+                category_id=category_id,
                 user_id=user_id,
                 source_file_id=file_id
             )
@@ -469,3 +512,35 @@ def get_uploaded_files(
         })
     
     return result
+
+@router.post("/categorize-transactions")
+def categorize_existing_transactions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Categorize existing uncategorized transactions."""
+    # Get all uncategorized transactions for the user
+    uncategorized_transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.category_id.is_(None)
+    ).all()
+    
+    categorized_count = 0
+    for transaction in uncategorized_transactions:
+        category_id = auto_categorize_transaction(
+            transaction.description,
+            float(transaction.amount),
+            db
+        )
+        
+        if category_id:
+            transaction.category_id = category_id
+            categorized_count += 1
+    
+    db.commit()
+    
+    return {
+        "message": f"Categorized {categorized_count} out of {len(uncategorized_transactions)} transactions",
+        "categorized": categorized_count,
+        "total": len(uncategorized_transactions)
+    }
