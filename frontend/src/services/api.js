@@ -116,6 +116,21 @@ export const transactionAPI = {
     return response.data;
   },
 
+  getGroupedByMonth: async (params = {}) => {
+    const response = await apiClient.get('/transactions/grouped-by-month', { params });
+    return response.data;
+  },
+
+  getFilterStats: async (params = {}) => {
+    const response = await apiClient.get('/transactions/filter-stats', { params });
+    return response.data;
+  },
+
+  getAllTransactions: async (params = {}) => {
+    const response = await apiClient.get('/transactions/all', { params });
+    return response.data;
+  },
+
   createTransaction: async (transactionData) => {
     const response = await apiClient.post('/transactions', transactionData);
     return response.data;
@@ -134,6 +149,56 @@ export const transactionAPI = {
   categorizeTransaction: async (id, categoryId) => {
     const response = await apiClient.post(`/transactions/${id}/categorize`, {
       category_id: categoryId
+    });
+    return response.data;
+  },
+
+  bulkCategorize: async (transactionIds, categoryId) => {
+    const response = await apiClient.post('/transactions/bulk-categorize', {
+      transaction_ids: transactionIds,
+      category_id: categoryId
+    });
+    return response.data;
+  },
+
+  bulkDelete: async (transactionIds) => {
+    const response = await apiClient.post('/transactions/bulk-delete', transactionIds);
+    return response.data;
+  },
+
+  exportSelected: async (transactionIds, format = 'csv') => {
+    const response = await apiClient.post('/transactions/export-selected', {
+      transaction_ids: transactionIds,
+      format: format
+    });
+    return response.data;
+  },
+
+  exportTransactions: async (params = {}) => {
+    const response = await apiClient.get('/transactions/export', { params });
+    return response.data;
+  },
+
+  uploadPDF: async (file, accountId) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await apiClient.post(`/transactions/upload-pdf?account_id=${accountId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  testPDFText: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await apiClient.post('/transactions/test-pdf-text', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
     return response.data;
   },

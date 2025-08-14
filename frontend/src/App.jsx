@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AuthPage from './components/auth/AuthPage';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import Transactions from './pages/Transactions';
+import TransactionsNew from './pages/TransactionsNew';
 import Analytics from './pages/Analytics';
 import Goals from './pages/Goals';
 import Banks from './pages/Banks';
@@ -36,7 +36,7 @@ function AppContent() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/transactions" element={<TransactionsNew />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/banks" element={<Banks />} />
