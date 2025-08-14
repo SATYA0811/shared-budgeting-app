@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* small helper to ensure body uses Tailwind font stack */
+body { @apply bg-slate-50; }
+
+/* Button Components */
+.btn-primary {
+  @apply bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors;
+}
+
+/* Card Components */
+.card {
+  @apply bg-white rounded-xl shadow-sm;
+}
+
+.card-header {
+  @apply p-6 border-b border-gray-200;
+}
+
+.card-content {
+  @apply p-6;
+}
+
+/* Form Components */
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors;
+}
+
+.form-select {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+/* Status Colors */
+.status-active { @apply bg-green-100 text-green-800; }
+.status-inactive { @apply bg-gray-100 text-gray-800; }
+.status-warning { @apply bg-yellow-100 text-yellow-800; }
+.status-error { @apply bg-red-100 text-red-800; }
+
+/* Animations */
+.fade-in {
+  @apply opacity-0 animate-pulse;
+}
+
+.slide-up {
+  @apply transform translate-y-2 opacity-0 transition-all duration-300;
+}
