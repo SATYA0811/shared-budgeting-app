@@ -150,6 +150,7 @@ class Goal(Base):
     status = Column(SQLAlchemyEnum(GoalStatus))
     priority = Column(SQLAlchemyEnum(GoalPriority))
     category = Column(SQLAlchemyEnum(GoalCategory))
+    created_at = Column(DateTime, server_default=func.now())
     
     # Relationships
     user = relationship("User", back_populates="goals")

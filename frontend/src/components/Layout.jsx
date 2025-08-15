@@ -188,16 +188,8 @@ export default function Layout({ children }) {
               </div>
             </div>
 
-            {/* Header Actions */}
+            {/* Header Actions - Empty for now, content moved to individual pages */}
             <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-900">Balance</div>
-                <div className="text-lg font-semibold text-green-600">$2,730.50</div>
-              </div>
-              
-              <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
-                Quick Add
-              </button>
             </div>
           </div>
         </header>

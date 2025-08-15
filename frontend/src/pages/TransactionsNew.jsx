@@ -91,11 +91,24 @@ export default function TransactionsNew() {
         search: searchQuery || undefined,
         bank_filter: filters.bankFilter !== 'all' ? filters.bankFilter : undefined,
         has_category: filters.hasCategory,
-        merchant_filter: filters.merchantFilter
+        merchant_filter: filters.merchantFilter,
+        sort_by: filters.sortBy || 'date',
+        sort_order: filters.sortOrder || 'desc',
+        time_filter: filters.timeFilter !== 'all' ? filters.timeFilter : undefined
       };
 
       const response = await api.transactions.getGroupedByMonth(params);
-      setMonthlyGroups(response.monthly_groups || []);
+      let monthlyGroups = response.monthly_groups || [];
+      
+      // Apply client-side sorting if needed
+      if (filters.sortOrder === 'asc') {
+        monthlyGroups = monthlyGroups.reverse();
+        monthlyGroups.forEach(group => {
+          group.transactions = group.transactions.reverse();
+        });
+      }
+      
+      setMonthlyGroups(monthlyGroups);
     } catch (error) {
       console.error('Error loading transactions:', error);
     } finally {
@@ -232,6 +245,43 @@ export default function TransactionsNew() {
     loadFilterStats();
   };
 
+  const getTimeFilterLabel = () => {
+    switch (filters.timeFilter) {
+      case '7days': return 'Last 7 days';
+      case '30days': return 'Last 30 days';
+      case '90days': return 'Last 90 days';
+      case '6months': return 'Last 6 months';
+      case '1year': return 'Last year';
+      default: return 'All time';
+    }
+  };
+
+  const handleTimeFilterClick = () => {
+    const timeFilterOptions = ['all', '7days', '30days', '90days', '6months', '1year'];
+    const currentIndex = timeFilterOptions.indexOf(filters.timeFilter);
+    const nextIndex = (currentIndex + 1) % timeFilterOptions.length;
+    handleFilterChange('timeFilter', timeFilterOptions[nextIndex]);
+  };
+
+  const getBankFilterLabel = () => {
+    switch (filters.bankFilter) {
+      case 'CIBC': return 'CIBC';
+      case 'RBC': return 'RBC';
+      case 'AMEX': return 'AMEX';
+      case 'TD': return 'TD Bank';
+      case 'Scotiabank': return 'Scotiabank';
+      default: return 'All banks';
+    }
+  };
+
+  const handleBankFilterClick = () => {
+    const bankFilterOptions = ['all', 'CIBC', 'RBC', 'AMEX', 'TD', 'Scotiabank'];
+    const currentIndex = bankFilterOptions.indexOf(filters.bankFilter);
+    const nextIndex = (currentIndex + 1) % bankFilterOptions.length;
+    handleFilterChange('bankFilter', bankFilterOptions[nextIndex]);
+  };
+
+
   if (loading && monthlyGroups.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -311,25 +361,25 @@ export default function TransactionsNew() {
             {/* Sort Controls */}
             <FilterButton
               icon={<SlidersHorizontal className="h-4 w-4" />}
-              label="Newest first"
-              active={filters.sortOrder === 'desc'}
+              label={filters.sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
+              active={filters.sortOrder !== 'desc'}
               onClick={() => handleFilterChange('sortOrder', filters.sortOrder === 'desc' ? 'asc' : 'desc')}
             />
 
             {/* Time Filter */}
             <FilterButton
               icon={<Calendar className="h-4 w-4" />}
-              label="All time"
+              label={getTimeFilterLabel()}
               active={filters.timeFilter !== 'all'}
-              onClick={() => handleFilterChange('timeFilter', filters.timeFilter === 'all' ? '30days' : 'all')}
+              onClick={handleTimeFilterClick}
             />
 
             {/* Bank Filter */}
             <FilterButton
               icon={<Building2 className="h-4 w-4" />}
-              label="All banks"
+              label={getBankFilterLabel()}
               active={filters.bankFilter !== 'all'}
-              onClick={() => handleFilterChange('bankFilter', filters.bankFilter === 'all' ? 'CIBC' : 'all')}
+              onClick={handleBankFilterClick}
             />
 
             {/* Category Filter */}
@@ -532,6 +582,26 @@ function MonthlyGroup({ monthGroup, selectedTransactions, onToggleTransaction })
         </div>
       </div>
 
+      {/* Column Headers */}
+      <div className="bg-gray-50 border-b border-gray-200">
+        <div className="grid grid-cols-12 gap-4 px-6 py-3">
+          <div className="col-span-1 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          </div>
+          <div className="col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Date
+          </div>
+          <div className="col-span-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Description
+          </div>
+          <div className="col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
+            Amount
+          </div>
+          <div className="col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Category
+          </div>
+        </div>
+      </div>
+
       {/* Transactions List */}
       <div className="divide-y divide-gray-100">
         {monthGroup.transactions.map((transaction) => (
@@ -631,6 +701,7 @@ function SearchResultRow({ transaction, selected, onToggleSelect }) {
   );
 }
 
+
 // Transaction Row Component
 function TransactionRow({ transaction, selected, onToggleSelect }) {
   const isCredit = transaction.is_credit;
@@ -650,14 +721,14 @@ function TransactionRow({ transaction, selected, onToggleSelect }) {
 
   return (
     <div 
-      className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
+      className={`grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
         selected ? 'bg-blue-50' : ''
       }`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
       {/* Checkbox */}
-      <div className="flex-shrink-0">
+      <div className="col-span-1 flex items-center">
         <input
           type="checkbox"
           checked={selected}
@@ -666,57 +737,48 @@ function TransactionRow({ transaction, selected, onToggleSelect }) {
         />
       </div>
 
-      {/* Date & Time */}
-      <div className="flex-shrink-0 text-right min-w-[80px]">
+      {/* Date */}
+      <div className="col-span-2 flex items-center">
         <div className="text-sm font-medium text-gray-900">
           {new Date(transaction.date).toLocaleDateString('en-US', { 
             month: 'short', 
-            day: 'numeric' 
+            day: 'numeric',
+            year: 'numeric'
           })}
         </div>
-        <div className="text-xs text-gray-500">
-          {transaction.time}
+      </div>
+
+      {/* Name/Description */}
+      <div className="col-span-4 flex items-center min-w-0">
+        <div className="truncate">
+          <div className="text-sm font-medium text-gray-900 truncate">
+            {transaction.description}
+          </div>
+          {transaction.merchant && transaction.merchant !== transaction.description && (
+            <div className="text-xs text-gray-500 truncate">
+              {transaction.merchant}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Amount */}
-      <div className="flex-shrink-0 text-right min-w-[100px]">
-        <div className={`text-lg font-semibold ${
-          isCredit ? 'text-green-600' : 'text-gray-900'
+      <div className="col-span-3 flex items-center justify-end">
+        <div className={`text-sm font-semibold ${
+          isCredit ? 'text-green-600' : 'text-red-600'
         }`}>
           {isCredit ? '+' : '-'}{formatCAD(transaction.amount)}
         </div>
       </div>
 
-      {/* Merchant/Description */}
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 truncate">
-          {transaction.merchant}
-        </div>
-        {transaction.description !== transaction.merchant && (
-          <div className="text-xs text-gray-500 truncate">
-            {transaction.description}
-          </div>
-        )}
-      </div>
-
       {/* Category */}
-      <div className="flex-shrink-0">
+      <div className="col-span-2 flex items-center">
         <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${
           getCategoryStyle(transaction.category_name)
         }`}>
           <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
-          {transaction.category_name}
+          {transaction.category_name || 'Untagged'}
         </span>
-      </div>
-
-      {/* Logo/Icon placeholder */}
-      <div className="flex-shrink-0">
-        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-          <span className="text-xs font-medium text-gray-600">
-            {transaction.merchant.charAt(0)}
-          </span>
-        </div>
       </div>
 
       {/* Actions */}

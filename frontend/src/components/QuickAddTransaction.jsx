@@ -77,7 +77,7 @@ export default function QuickAddTransaction({ onSuccess, onClose }) {
       const transactionData = {
         description: formData.description.trim(),
         amount: formData.type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
-        date: formData.date,
+        date: new Date(formData.date).toISOString(),
         category_id: formData.category_id || null,
         account_id: parseInt(formData.account_id)
       };
