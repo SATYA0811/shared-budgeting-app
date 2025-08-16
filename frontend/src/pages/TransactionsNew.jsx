@@ -14,12 +14,10 @@ import {
   Calendar,
   Building2,
   Tag as TagIcon,
-  Store,
   Filter,
   SlidersHorizontal,
   TrendingUp,
   TrendingDown,
-  MoreHorizontal,
   Plus,
   X,
   Loader,
@@ -53,6 +51,13 @@ export default function TransactionsNew() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [accountBalance, setAccountBalance] = useState(0);
   const [accounts, setAccounts] = useState([]);
+  const [availableBanks, setAvailableBanks] = useState([]);
+  const [banksLoading, setBanksLoading] = useState(true);
+  const [dropdownStates, setDropdownStates] = useState({
+    sort: false,
+    time: false,
+    bank: false
+  });
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -61,7 +66,6 @@ export default function TransactionsNew() {
     timeFilter: 'all',
     bankFilter: 'all',
     hasCategory: null,
-    merchantFilter: null,
     year: new Date().getFullYear()
   });
 
@@ -69,7 +73,13 @@ export default function TransactionsNew() {
   useEffect(() => {
     loadTransactionData();
     loadFilterStats();
+    loadAvailableBanks();
   }, [filters.year]);
+
+  // Reload data when filters change (except year which is handled above)
+  useEffect(() => {
+    loadTransactionData();
+  }, [filters.sortBy, filters.sortOrder, filters.timeFilter, filters.bankFilter, filters.hasCategory]);
 
   // Debounced search
   useEffect(() => {
@@ -83,6 +93,24 @@ export default function TransactionsNew() {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
+  // Close dropdowns when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleClickOutside = () => closeAllDropdowns();
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeAllDropdowns();
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const loadTransactionData = async () => {
     try {
       setLoading(true);
@@ -91,7 +119,6 @@ export default function TransactionsNew() {
         search: searchQuery || undefined,
         bank_filter: filters.bankFilter !== 'all' ? filters.bankFilter : undefined,
         has_category: filters.hasCategory,
-        merchant_filter: filters.merchantFilter,
         sort_by: filters.sortBy || 'date',
         sort_order: filters.sortOrder || 'desc',
         time_filter: filters.timeFilter !== 'all' ? filters.timeFilter : undefined
@@ -122,6 +149,21 @@ export default function TransactionsNew() {
       setFilterStats(response);
     } catch (error) {
       console.error('Error loading filter stats:', error);
+    }
+  };
+
+  const loadAvailableBanks = async () => {
+    try {
+      setBanksLoading(true);
+      const response = await api.banks.getAccounts();
+      const bankNames = [...new Set(response.accounts.map(account => account.bank_name))];
+      setAvailableBanks(bankNames);
+    } catch (error) {
+      console.error('Error loading banks:', error);
+      // Fallback to hardcoded banks if API fails
+      setAvailableBanks(['CIBC', 'RBC', 'AMEX', 'TD', 'Scotiabank']);
+    } finally {
+      setBanksLoading(false);
     }
   };
 
@@ -186,7 +228,7 @@ export default function TransactionsNew() {
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-    loadTransactionData();
+    // Data will auto-reload via useEffect
   };
 
   const resetFilters = () => {
@@ -196,10 +238,11 @@ export default function TransactionsNew() {
       timeFilter: 'all',
       bankFilter: 'all',
       hasCategory: null,
-      merchantFilter: null,
       year: new Date().getFullYear()
     });
     setSearchQuery('');
+    closeAllDropdowns();
+    // Data will auto-reload via useEffect when filters change
   };
 
   const toggleTransactionSelection = (transactionId) => {
@@ -274,11 +317,73 @@ export default function TransactionsNew() {
     }
   };
 
-  const handleBankFilterClick = () => {
-    const bankFilterOptions = ['all', 'CIBC', 'RBC', 'AMEX', 'TD', 'Scotiabank'];
-    const currentIndex = bankFilterOptions.indexOf(filters.bankFilter);
-    const nextIndex = (currentIndex + 1) % bankFilterOptions.length;
-    handleFilterChange('bankFilter', bankFilterOptions[nextIndex]);
+  const toggleDropdown = (dropdownName) => {
+    setDropdownStates(prev => ({
+      ...Object.keys(prev).reduce((acc, key) => ({ ...acc, [key]: false }), {}),
+      [dropdownName]: !prev[dropdownName]
+    }));
+  };
+
+  const closeAllDropdowns = () => {
+    setDropdownStates({
+      sort: false,
+      time: false,
+      bank: false
+    });
+  };
+
+  const getSortOptions = () => [
+    { value: 'date_desc', label: 'Newest first' },
+    { value: 'date_asc', label: 'Oldest first' },
+    { value: 'amount_desc', label: 'Highest amount' },
+    { value: 'amount_asc', label: 'Lowest amount' }
+  ];
+
+  const getTimeOptions = () => [
+    { value: 'all', label: 'All time' },
+    { value: '7days', label: 'Last 7 days' },
+    { value: '30days', label: 'Last 30 days' },
+    { value: '90days', label: 'Last 90 days' },
+    { value: '6months', label: 'Last 6 months' },
+    { value: '1year', label: 'Last year' }
+  ];
+
+  const getBankOptions = () => [
+    { value: 'all', label: 'All banks' },
+    ...availableBanks.map(bank => ({ value: bank, label: bank }))
+  ];
+
+  const getCurrentSortLabel = () => {
+    const sortKey = `${filters.sortBy}_${filters.sortOrder}`;
+    const option = getSortOptions().find(opt => opt.value === sortKey);
+    return option ? option.label : 'Newest first';
+  };
+
+  const handleSortSelect = (value) => {
+    const [sortBy, sortOrder] = value.split('_');
+    setFilters(prev => ({ ...prev, sortBy, sortOrder }));
+    closeAllDropdowns();
+    // Data will auto-reload via useEffect
+  };
+
+  const handleTimeSelect = (value) => {
+    handleFilterChange('timeFilter', value);
+    closeAllDropdowns();
+  };
+
+  const handleBankSelect = (value) => {
+    handleFilterChange('bankFilter', value);
+    closeAllDropdowns();
+  };
+
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (filters.sortBy !== 'date' || filters.sortOrder !== 'desc') count++;
+    if (filters.timeFilter !== 'all') count++;
+    if (filters.bankFilter !== 'all') count++;
+    if (filters.hasCategory !== null) count++;
+    if (searchQuery.trim()) count++;
+    return count;
   };
 
 
@@ -359,27 +464,40 @@ export default function TransactionsNew() {
           {/* Filter Controls */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Sort Controls */}
-            <FilterButton
+            <DropdownFilter
               icon={<SlidersHorizontal className="h-4 w-4" />}
-              label={filters.sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
-              active={filters.sortOrder !== 'desc'}
-              onClick={() => handleFilterChange('sortOrder', filters.sortOrder === 'desc' ? 'asc' : 'desc')}
+              label={getCurrentSortLabel()}
+              active={filters.sortOrder !== 'desc' || filters.sortBy !== 'date'}
+              isOpen={dropdownStates.sort}
+              onToggle={() => toggleDropdown('sort')}
+              options={getSortOptions()}
+              onSelect={handleSortSelect}
+              currentValue={`${filters.sortBy}_${filters.sortOrder}`}
             />
 
             {/* Time Filter */}
-            <FilterButton
+            <DropdownFilter
               icon={<Calendar className="h-4 w-4" />}
               label={getTimeFilterLabel()}
               active={filters.timeFilter !== 'all'}
-              onClick={handleTimeFilterClick}
+              isOpen={dropdownStates.time}
+              onToggle={() => toggleDropdown('time')}
+              options={getTimeOptions()}
+              onSelect={handleTimeSelect}
+              currentValue={filters.timeFilter}
             />
 
             {/* Bank Filter */}
-            <FilterButton
-              icon={<Building2 className="h-4 w-4" />}
-              label={getBankFilterLabel()}
+            <DropdownFilter
+              icon={banksLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+              label={banksLoading ? 'Loading banks...' : getBankFilterLabel()}
               active={filters.bankFilter !== 'all'}
-              onClick={handleBankFilterClick}
+              isOpen={dropdownStates.bank && !banksLoading}
+              onToggle={() => !banksLoading && toggleDropdown('bank')}
+              options={getBankOptions()}
+              onSelect={handleBankSelect}
+              currentValue={filters.bankFilter}
+              disabled={banksLoading}
             />
 
             {/* Category Filter */}
@@ -391,19 +509,20 @@ export default function TransactionsNew() {
               onClick={() => handleFilterChange('hasCategory', filters.hasCategory === false ? null : false)}
             />
 
-            {/* Merchant Filter */}
-            <FilterBadge
-              icon={<Store className="h-4 w-4" />}
-              label="No Merchant"
-              count={0}
-              active={filters.merchantFilter === 'unknown'}
-              onClick={() => handleFilterChange('merchantFilter', filters.merchantFilter === 'unknown' ? null : 'unknown')}
-            />
+
+            {/* Active Filters Count */}
+            {getActiveFiltersCount() > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium">
+                <Filter className="h-4 w-4" />
+                {getActiveFiltersCount()} filter{getActiveFiltersCount() !== 1 ? 's' : ''} active
+              </div>
+            )}
 
             {/* Reset Filters */}
             <button
               onClick={resetFilters}
-              className="ml-auto flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
+              disabled={getActiveFiltersCount() === 0}
+              className="ml-auto flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RotateCcw className="h-4 w-4" />
               Reset filters
@@ -522,7 +641,62 @@ export default function TransactionsNew() {
   );
 }
 
-// Filter Button Component
+// Dropdown Filter Component
+function DropdownFilter({ icon, label, active, isOpen, onToggle, options, onSelect, currentValue, disabled }) {
+  return (
+    <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={onToggle}
+        disabled={disabled}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+          disabled 
+            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+            : active 
+              ? 'bg-blue-50 border-blue-200 text-blue-700' 
+              : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+        }`}
+      >
+        {icon}
+        <span className="text-sm font-medium">{label}</span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <div 
+          className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl min-w-[200px] whitespace-nowrap"
+          style={{ 
+            position: 'absolute', 
+            zIndex: 9999,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}
+        >
+          {options.map((option, index) => (
+            <button
+              key={option.value}
+              onClick={() => onSelect(option.value)}
+              className={`w-full text-left px-4 py-2 text-sm transition-colors relative block ${
+                index === 0 ? 'rounded-t-lg' : ''
+              } ${
+                index === options.length - 1 ? 'rounded-b-lg' : ''
+              } ${
+                currentValue === option.value 
+                  ? 'bg-blue-50 text-blue-700 font-medium' 
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {option.label}
+              {currentValue === option.value && (
+                <Check className="h-4 w-4 absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Filter Button Component (kept for non-dropdown filters)
 function FilterButton({ icon, label, active, onClick }) {
   return (
     <button
@@ -620,7 +794,6 @@ function MonthlyGroup({ monthGroup, selectedTransactions, onToggleTransaction })
 // Search Result Row Component
 function SearchResultRow({ transaction, selected, onToggleSelect }) {
   const isCredit = transaction.amount > 0;
-  const [showActions, setShowActions] = useState(false);
 
   const getCategoryStyle = (categoryName) => {
     const styles = {
@@ -639,8 +812,6 @@ function SearchResultRow({ transaction, selected, onToggleSelect }) {
       className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
         selected ? 'bg-blue-50' : ''
       }`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* Checkbox */}
       <div className="flex-shrink-0">
@@ -688,15 +859,6 @@ function SearchResultRow({ transaction, selected, onToggleSelect }) {
           {transaction.category_name || 'Untagged'}
         </span>
       </div>
-
-      {/* Actions */}
-      <div className="flex-shrink-0 w-8">
-        {showActions && (
-          <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -705,7 +867,6 @@ function SearchResultRow({ transaction, selected, onToggleSelect }) {
 // Transaction Row Component
 function TransactionRow({ transaction, selected, onToggleSelect }) {
   const isCredit = transaction.is_credit;
-  const [showActions, setShowActions] = useState(false);
 
   const getCategoryStyle = (categoryName) => {
     const styles = {
@@ -724,8 +885,6 @@ function TransactionRow({ transaction, selected, onToggleSelect }) {
       className={`grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
         selected ? 'bg-blue-50' : ''
       }`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* Checkbox */}
       <div className="col-span-1 flex items-center">
@@ -779,15 +938,6 @@ function TransactionRow({ transaction, selected, onToggleSelect }) {
           <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
           {transaction.category_name || 'Untagged'}
         </span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex-shrink-0 w-8">
-        {showActions && (
-          <button className="p-1 text-gray-400 hover:text-gray-600 rounded">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-        )}
       </div>
     </div>
   );

@@ -352,6 +352,37 @@ export const analyticsAPI = {
 };
 
 // ========================================
+// Bank Accounts API
+// ========================================
+
+export const bankAPI = {
+  getAccounts: async () => {
+    const response = await apiClient.get('/banks/accounts');
+    return response.data;
+  },
+
+  createAccount: async (accountData) => {
+    const response = await apiClient.post('/banks/accounts', accountData);
+    return response.data;
+  },
+
+  updateAccount: async (id, accountData) => {
+    const response = await apiClient.put(`/banks/accounts/${id}`, accountData);
+    return response.data;
+  },
+
+  deleteAccount: async (id) => {
+    const response = await apiClient.delete(`/banks/accounts/${id}`);
+    return response.data;
+  },
+
+  syncAccount: async (id) => {
+    const response = await apiClient.post(`/banks/accounts/${id}/sync`);
+    return response.data;
+  },
+};
+
+// ========================================
 // Health Check API
 // ========================================
 
@@ -376,5 +407,6 @@ export default {
   income: incomeAPI,
   goals: goalAPI,
   analytics: analyticsAPI,
+  banks: bankAPI,
   health: healthAPI,
 };
