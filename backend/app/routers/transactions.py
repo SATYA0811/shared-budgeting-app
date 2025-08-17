@@ -257,7 +257,10 @@ def get_transactions_grouped_by_month(
     result = []
     for month_key in sorted(monthly_groups.keys(), reverse=True):
         group = monthly_groups[month_key]
-        group["formatted_totals"] = f"${group['total_expenses']:,.2f} • ${group['net_amount']:+,.2f}"
+        income_str = f"${group['total_income']:,.2f}" if group['total_income'] > 0 else "$0.00"
+        expenses_str = f"${group['total_expenses']:,.2f}" if group['total_expenses'] > 0 else "$0.00"
+        net_str = f"${group['net_amount']:+,.2f}"
+        group["formatted_totals"] = f"Income: {income_str} • Expenses: {expenses_str} • Net: {net_str}"
         result.append(group)
     
     return {

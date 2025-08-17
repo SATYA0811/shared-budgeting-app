@@ -45,7 +45,6 @@ export default function TransactionsNew() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [selectedTransactions, setSelectedTransactions] = useState([]);
   const [showPDFUpload, setShowPDFUpload] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [accountBalance, setAccountBalance] = useState(0);
@@ -244,13 +243,6 @@ export default function TransactionsNew() {
     // Data will auto-reload via useEffect when filters change
   };
 
-  const toggleTransactionSelection = (transactionId) => {
-    setSelectedTransactions(prev => 
-      prev.includes(transactionId)
-        ? prev.filter(id => id !== transactionId)
-        : [...prev, transactionId]
-    );
-  };
 
 
   const handlePDFUploadSuccess = (result) => {
@@ -555,8 +547,6 @@ export default function TransactionsNew() {
                 <SearchResultRow
                   key={transaction.id}
                   transaction={transaction}
-                  selected={selectedTransactions.includes(transaction.id)}
-                  onToggleSelect={() => toggleTransactionSelection(transaction.id)}
                 />
               ))
             ) : (
@@ -577,8 +567,6 @@ export default function TransactionsNew() {
             <MonthlyGroup
               key={`${monthGroup.year}-${monthGroup.month}`}
               monthGroup={monthGroup}
-              selectedTransactions={selectedTransactions}
-              onToggleTransaction={toggleTransactionSelection}
             />
           ))}
 
@@ -711,7 +699,7 @@ function FilterBadge({ icon, label, count, active, onClick }) {
 }
 
 // Monthly Group Component
-function MonthlyGroup({ monthGroup, selectedTransactions, onToggleTransaction }) {
+function MonthlyGroup({ monthGroup }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Month Header */}
@@ -731,12 +719,10 @@ function MonthlyGroup({ monthGroup, selectedTransactions, onToggleTransaction })
       {/* Column Headers */}
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="grid grid-cols-12 gap-4 px-6 py-3">
-          <div className="col-span-1 text-xs font-medium text-gray-500 uppercase tracking-wider">
-          </div>
           <div className="col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Date
           </div>
-          <div className="col-span-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="col-span-5 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Description
           </div>
           <div className="col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
@@ -754,8 +740,6 @@ function MonthlyGroup({ monthGroup, selectedTransactions, onToggleTransaction })
           <TransactionRow
             key={transaction.id}
             transaction={transaction}
-            selected={selectedTransactions.includes(transaction.id)}
-            onToggleSelect={() => onToggleTransaction(transaction.id)}
           />
         ))}
       </div>
@@ -764,7 +748,7 @@ function MonthlyGroup({ monthGroup, selectedTransactions, onToggleTransaction })
 }
 
 // Search Result Row Component
-function SearchResultRow({ transaction, selected, onToggleSelect }) {
+function SearchResultRow({ transaction }) {
   const isCredit = transaction.amount > 0;
 
   const getCategoryStyle = (categoryName) => {
@@ -781,20 +765,8 @@ function SearchResultRow({ transaction, selected, onToggleSelect }) {
 
   return (
     <div 
-      className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
-        selected ? 'bg-blue-50' : ''
-      }`}
+      className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors"
     >
-      {/* Checkbox */}
-      <div className="flex-shrink-0">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={onToggleSelect}
-          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
-      </div>
-
       {/* Date */}
       <div className="flex-shrink-0 text-right min-w-[100px]">
         <div className="text-sm font-medium text-gray-900">
@@ -837,7 +809,7 @@ function SearchResultRow({ transaction, selected, onToggleSelect }) {
 
 
 // Transaction Row Component
-function TransactionRow({ transaction, selected, onToggleSelect }) {
+function TransactionRow({ transaction }) {
   const isCredit = transaction.is_credit;
 
   const getCategoryStyle = (categoryName) => {
@@ -854,20 +826,8 @@ function TransactionRow({ transaction, selected, onToggleSelect }) {
 
   return (
     <div 
-      className={`grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
-        selected ? 'bg-blue-50' : ''
-      }`}
+      className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors"
     >
-      {/* Checkbox */}
-      <div className="col-span-1 flex items-center">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={onToggleSelect}
-          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
-      </div>
-
       {/* Date */}
       <div className="col-span-2 flex items-center">
         <div className="text-sm font-medium text-gray-900">
@@ -880,7 +840,7 @@ function TransactionRow({ transaction, selected, onToggleSelect }) {
       </div>
 
       {/* Name/Description */}
-      <div className="col-span-4 flex items-center min-w-0">
+      <div className="col-span-5 flex items-center min-w-0">
         <div className="truncate">
           <div className="text-sm font-medium text-gray-900 truncate">
             {transaction.description}
