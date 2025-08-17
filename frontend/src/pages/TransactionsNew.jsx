@@ -1,13 +1,12 @@
 /**
  * Modern Transactions Page - Matching the provided design
- * Features: Monthly grouping, advanced filtering, bulk selection, export
+ * Features: Monthly grouping, advanced filtering, bulk selection
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, 
   ChevronDown,
-  Download, 
   Upload,
   RotateCcw,
   Check,
@@ -253,24 +252,6 @@ export default function TransactionsNew() {
     );
   };
 
-  const handleBulkExport = async () => {
-    if (selectedTransactions.length === 0) return;
-    
-    try {
-      const response = await api.transactions.exportSelected(selectedTransactions, 'csv');
-      
-      // Create download link
-      const blob = new Blob([response.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = response.filename;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting transactions:', error);
-    }
-  };
 
   const handlePDFUploadSuccess = (result) => {
     console.log('PDF Upload successful:', result);
@@ -537,15 +518,6 @@ export default function TransactionsNew() {
               Upload PDF
             </button>
 
-            {/* Export Button */}
-            <button
-              onClick={handleBulkExport}
-              disabled={selectedTransactions.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </button>
           </div>
         </div>
       </div>
