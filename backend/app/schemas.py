@@ -62,12 +62,14 @@ class AccountResponse(BaseModel):
 # Category schemas
 class CategoryCreate(BaseModel):
     name: str
+    description: Optional[str] = None
     parent_id: Optional[int] = None
     default_budget: Optional[Decimal] = None
 
 class CategoryResponse(BaseModel):
     id: int
     name: str
+    description: Optional[str]
     parent_id: Optional[int]
     default_budget: Optional[Decimal]
     
@@ -76,6 +78,7 @@ class CategoryResponse(BaseModel):
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
+    description: Optional[str] = None
     parent_id: Optional[int] = None
     default_budget: Optional[Decimal] = None
 

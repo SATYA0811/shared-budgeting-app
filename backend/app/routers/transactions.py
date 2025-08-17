@@ -936,6 +936,47 @@ def delete_transaction(
     
     return {"message": "Transaction deleted successfully"}
 
+@router.post("/{transaction_id}/categorize")
+def categorize_single_transaction(
+    transaction_id: int,
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Categorize a single transaction."""
+    # Find the transaction
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    ).first()
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    category_id = request.get("category_id")
+    
+    # Verify category exists if provided
+    if category_id:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        
+        transaction.category_id = category_id
+        category_name = category.name
+    else:
+        # Clear category
+        transaction.category_id = None
+        category_name = None
+    
+    db.commit()
+    
+    return {
+        "message": "Transaction categorized successfully",
+        "transaction_id": transaction_id,
+        "category_id": category_id,
+        "category_name": category_name
+    }
+
 @router.post("/categorize")
 def categorize_transactions(
     request: CategorizeTransactionRequest,

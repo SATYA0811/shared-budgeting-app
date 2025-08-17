@@ -26,6 +26,7 @@ import {
 import api from '../services/api';
 import PDFUpload from '../components/PDFUpload';
 import QuickAddTransaction from '../components/QuickAddTransaction';
+import CategoryDropdown from '../components/CategoryDropdown';
 
 // Utility function for Canadian currency formatting
 const formatCAD = (amount) => {
@@ -34,6 +35,12 @@ const formatCAD = (amount) => {
     minimumFractionDigits: 2, 
     maximumFractionDigits: 2 
   })}`;
+};
+
+// Utility function to convert text to sentence case
+const toSentenceCase = (text) => {
+  if (!text) return text;
+  return text.toLowerCase().replace(/(^\w|\s\w)/g, match => match.toUpperCase());
 };
 
 export default function TransactionsNew() {
@@ -56,6 +63,7 @@ export default function TransactionsNew() {
     time: false,
     bank: false
   });
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -303,6 +311,30 @@ export default function TransactionsNew() {
       time: false,
       bank: false
     });
+  };
+
+  // Function to update transaction category
+  const updateTransactionCategory = async (transactionId, categoryId) => {
+    try {
+      if (categoryId) {
+        await api.transactions.categorizeTransaction(transactionId, categoryId);
+      } else {
+        // Clear category by updating with null
+        await api.transactions.updateTransaction(transactionId, {
+          category_id: null
+        });
+      }
+      
+      // Show success notification
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+      // Reload transaction data to reflect changes
+      loadTransactionData();
+      loadFilterStats();
+    } catch (error) {
+      console.error('Error updating transaction category:', error);
+    }
   };
 
   const getSortOptions = () => [
@@ -567,6 +599,7 @@ export default function TransactionsNew() {
             <MonthlyGroup
               key={`${monthGroup.year}-${monthGroup.month}`}
               monthGroup={monthGroup}
+              onUpdateCategory={updateTransactionCategory}
             />
           ))}
 
@@ -596,6 +629,22 @@ export default function TransactionsNew() {
           onSuccess={handleQuickAddSuccess}
           onClose={() => setShowQuickAdd(false)}
         />
+      )}
+
+      {/* Success Toast Notification */}
+      {showSuccessToast && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-green-400"></div>
+            <span className="text-sm font-medium">Category updated successfully!</span>
+            <button 
+              onClick={() => setShowSuccessToast(false)}
+              className="ml-2 text-gray-300 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -699,7 +748,7 @@ function FilterBadge({ icon, label, count, active, onClick }) {
 }
 
 // Monthly Group Component
-function MonthlyGroup({ monthGroup }) {
+function MonthlyGroup({ monthGroup, onUpdateCategory }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Month Header */}
@@ -740,6 +789,7 @@ function MonthlyGroup({ monthGroup }) {
           <TransactionRow
             key={transaction.id}
             transaction={transaction}
+            onUpdateCategory={onUpdateCategory}
           />
         ))}
       </div>
@@ -790,7 +840,7 @@ function SearchResultRow({ transaction }) {
       {/* Description */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-900 truncate">
-          {transaction.description}
+          {toSentenceCase(transaction.description)}
         </div>
       </div>
 
@@ -809,7 +859,7 @@ function SearchResultRow({ transaction }) {
 
 
 // Transaction Row Component
-function TransactionRow({ transaction }) {
+function TransactionRow({ transaction, onUpdateCategory }) {
   const isCredit = transaction.is_credit;
 
   const getCategoryStyle = (categoryName) => {
@@ -843,7 +893,7 @@ function TransactionRow({ transaction }) {
       <div className="col-span-5 flex items-center min-w-0">
         <div className="truncate">
           <div className="text-sm font-medium text-gray-900 truncate">
-            {transaction.description}
+            {toSentenceCase(transaction.description)}
           </div>
           {transaction.merchant && transaction.merchant !== transaction.description && (
             <div className="text-xs text-gray-500 truncate">
@@ -864,12 +914,12 @@ function TransactionRow({ transaction }) {
 
       {/* Category */}
       <div className="col-span-2 flex items-center">
-        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${
-          getCategoryStyle(transaction.category_name)
-        }`}>
-          <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
-          {transaction.category_name || 'Untagged'}
-        </span>
+        <CategoryDropdown
+          value={transaction.category_id}
+          onChange={(category) => onUpdateCategory(transaction.id, category?.id)}
+          placeholder={transaction.category_name || "Untagged"}
+          className="w-full"
+        />
       </div>
     </div>
   );

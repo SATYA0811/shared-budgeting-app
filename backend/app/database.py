@@ -1,9 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from .models import Base
+from .config import settings
 
-# Database URL - using SQLite for development
-DATABASE_URL = "sqlite:///./dev.db"
+# Database URL - using settings from config
+DATABASE_URL = settings.database_url
 
 # Create engine
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
