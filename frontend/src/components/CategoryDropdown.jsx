@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Tag, Utensils, Car, ShoppingBag, ShoppingCart, Film, Calendar, MapPin, Heart, Dumbbell, Wrench, Receipt, Repeat, CreditCard, TrendingUp, Users, Shield, FileText, Wallet, Baby, MoreHorizontal, ArrowRightLeft, PiggyBank, Gift, Shirt, Zap, Hammer, Camera, Gauge, Paintbrush, FileStack, Scale, Truck, Settings } from 'lucide-react';
+import { Search, ChevronDown, Tag, Utensils, Car, ShoppingBag, ShoppingCart, Film, Calendar, MapPin, Heart, Dumbbell, Wrench, Receipt, Repeat, CreditCard, TrendingUp, Users, Shield, FileText, Wallet, Baby, MoreHorizontal, ArrowRightLeft, PiggyBank, Gift, Shirt, Zap, Hammer, Camera, Gauge, Paintbrush, FileStack, Scale, Truck, Settings, Coffee, Pizza, Wine, Soup, IceCream, Apple, Cherry, Fish, GlassWater, Scissors, Package, Droplets, Fuel, Bus, Bike, Train, Plane, Home, Building, Store, Gamepad2, Music, Headphones, Tv, Book, Briefcase, GraduationCap, Stethoscope, Pill, Hospital, Flower2, Diamond, Watch, Glasses, Footprints, Brush, Palette, Cake } from 'lucide-react';
 import api from '../services/api';
 
 // Category icon mapping
@@ -39,9 +39,9 @@ const getCategoryIcon = (categoryName) => {
     'Gift': Gift,
     
     // Child categories - Services (as shown in your image)
-    'Laundry': Shirt,
-    'Tailor': Users,
-    'Courier': Truck,
+    'Laundry': Droplets,
+    'Tailor': Scissors,
+    'Courier': Package,
     'Carpenter': Hammer,
     'Plumber': Wrench,
     'Mechanic': Settings,
@@ -55,15 +55,80 @@ const getCategoryIcon = (categoryName) => {
     'Advisor': Users,
     'Repair': Wrench,
     'Logistics': Truck,
-    'Others': MoreHorizontal,
     
-    // Other child categories
+    // Food & Drinks subcategories  
     'Eating out': Utensils,
     'Take Away': ShoppingBag,
+    'Tea & Coffee': Coffee,
+    'Fast Food': Pizza,
+    'Snacks': Apple,
+    'Swiggy': Utensils,
+    'Zomato': Utensils,
+    'Sweets': Cake,
+    'Liquor': Wine,
+    'Beverages': GlassWater,
+    'Tiffin': Soup,
+    'Pizza': Pizza,
+    'Data': Fish,
+    'Others': MoreHorizontal,
+    
+    // More Food & Drinks options
+    'Candy': Cherry,
+    'Meat': Fish,
+    'Desserts': IceCream,
+    'Bakery': Coffee,
+    'Alcohol': Wine,
+    'Beer': Wine,
+    'Fruits': Apple,
+    'Dairy': GlassWater,
+    
+    // Transport subcategories
     'Uber': Car,
     'Rapido': Car,
+    'Auto': Car,
+    'Cab': Car,
+    'Bus': Bus,
+    'Train': Train,
+    'Flight': Plane,
+    'Bike': Bike,
+    'Fuel': Fuel,
+    'Parking': Car,
+    
+    // Shopping subcategories
     'Clothes': Shirt,
     'Electronics': ShoppingBag,
+    'Jewelry': Diamond,
+    'Books': Book,
+    'Footwear': Footprints,
+    'Accessories': Watch,
+    'Home Decor': Home,
+    'Furniture': Building,
+    'Toys': Gamepad2,
+    'Sports': Dumbbell,
+    
+    // Entertainment subcategories
+    'Movies': Film,
+    'Music': Music,
+    'Games': Gamepad2,
+    'TV': Tv,
+    'Concerts': Music,
+    'Parties': Calendar,
+    
+    // Personal subcategories
+    'Beauty': Brush,
+    'Salon': Scissors,
+    'Spa': Flower2,
+    'Glasses': Glasses,
+    'Healthcare': Stethoscope,
+    'Medicine': Pill,
+    'Hospital': Hospital,
+    'Dental': Heart,
+    
+    // Education & Work
+    'Education': GraduationCap,
+    'Training': Book,
+    'Office': Briefcase,
+    'Stationery': FileText,
   };
 
   const IconComponent = iconMap[categoryName] || Tag;
@@ -101,7 +166,6 @@ export default function CategoryDropdown({
   const loadCategories = async () => {
     try {
       const response = await api.categories.getCategories();
-      console.log('Categories loaded:', response);
       setCategories(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -157,7 +221,9 @@ export default function CategoryDropdown({
   };
 
   const handleDone = () => {
-    onChange(selectedCategory);
+    if (selectedCategory) {
+      onChange(selectedCategory);
+    }
     setIsOpen(false);
     setSearchTerm('');
     setSelectedCategory(null);
@@ -180,55 +246,96 @@ export default function CategoryDropdown({
 
   const getSelectedCategory = () => {
     if (!value) return null;
-    return categories.find(cat => cat.id === value);
+    const selected = categories.find(cat => cat.id === value);
+    return selected;
   };
 
   const filteredCategories = getFilteredCategories();
 
+  // Get category color based on parent category
+  const getCategoryColor = (categoryName, parentName = null) => {
+    const parentCategoryName = parentName || categoryName;
+    const colorMap = {
+      'Food & Drinks': 'bg-orange-100 text-orange-700 border-orange-200',
+      'Transport': 'bg-blue-100 text-blue-700 border-blue-200',
+      'Shopping': 'bg-purple-100 text-purple-700 border-purple-200',
+      'Groceries': 'bg-green-100 text-green-700 border-green-200',
+      'Entertainment': 'bg-pink-100 text-pink-700 border-pink-200',
+      'Services': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      'Bill': 'bg-red-100 text-red-700 border-red-200',
+      'Medical': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'Personal': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+      'Investment': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    };
+    return colorMap[parentCategoryName] || 'bg-gray-100 text-gray-700 border-gray-200';
+  };
+
+  // Get parent category for a child category
+  const getParentCategoryName = (category) => {
+    if (!category) return null;
+    if (!category.parent_id) return category.name;
+    const parent = categories.find(cat => cat.id === category.parent_id);
+    return parent ? parent.name : category.name;
+  };
+
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
-      {/* Trigger Button */}
+      {/* Trigger Button - Styled as Badge */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left px-2 py-1 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-h-6 flex items-center justify-between"
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
+          value ? (() => {
+            const selectedCategory = getSelectedCategory();
+            const parentName = getParentCategoryName(selectedCategory);
+            return getCategoryColor(selectedCategory?.name, parentName);
+          })() : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+        }`}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        {(() => {
+          const selectedCategory = getSelectedCategory();
+          if (selectedCategory) {
+            // Always use the specific category's icon (whether parent or child)
+            const IconComponent = getCategoryIcon(selectedCategory.name);
+            return <IconComponent className="w-3.5 h-3.5 flex-shrink-0" />;
+          }
+          return <Tag className="w-3.5 h-3.5 flex-shrink-0" />;
+        })()}
+        <span className="truncate">
           {(() => {
             const selectedCategory = getSelectedCategory();
-            if (selectedCategory) {
-              const IconComponent = getCategoryIcon(selectedCategory.name);
-              return <IconComponent className="w-3 h-3 text-gray-500 flex-shrink-0" />;
+            if (!selectedCategory) {
+              return placeholder;
             }
-            return <Tag className="w-3 h-3 text-gray-400 flex-shrink-0" />;
+            
+            // If it's a subcategory, show the subcategory name
+            // If it's a parent category, show the parent category name
+            return selectedCategory.name;
           })()}
-          <span className={`truncate ${value ? "text-gray-900" : "text-gray-500"}`}>
-            {getSelectedCategory()?.name || placeholder}
-          </span>
-        </div>
-        <ChevronDown className={`h-3 w-3 text-gray-400 ml-1 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </span>
+        <ChevronDown className={`h-3 w-3 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
         <div 
-          className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-2xl w-96 max-h-[500px] overflow-hidden"
+          className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-2xl w-80 max-h-[480px] overflow-hidden"
           style={{
             top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 8 : 0,
-            left: dropdownRef.current ? Math.max(8, dropdownRef.current.getBoundingClientRect().left - 150) : 0,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            left: dropdownRef.current ? Math.max(8, dropdownRef.current.getBoundingClientRect().left - 100) : 0,
+            boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
           }}
         >
           {/* Search Input */}
-          <div className="p-4 border-b border-gray-100">
+          <div className="p-3 border-b border-gray-100">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search categories..."
+                placeholder='Search "Grooming"'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-gray-50 focus:bg-white transition-colors"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-gray-50 focus:bg-white transition-colors"
                 autoFocus
               />
             </div>
@@ -246,64 +353,58 @@ export default function CategoryDropdown({
                     <button
                       type="button"
                       onClick={() => handleParentCategoryClick(parentCategory)}
-                      className={`w-full px-4 py-3 bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                        activeParentCategory?.id === parentCategory.id || selectedCategory?.id === parentCategory.id || (selectedCategory === null && value === parentCategory.id) ? 'bg-blue-50 border-blue-200' : ''
+                      className={`w-full px-3 py-2.5 bg-white hover:bg-gray-50 transition-colors flex items-center gap-3 ${
+                        activeParentCategory?.id === parentCategory.id || selectedCategory?.id === parentCategory.id || (selectedCategory === null && value === parentCategory.id) ? 'bg-blue-50' : ''
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          parentCategory.name === 'Services' ? 'bg-purple-100' : 'bg-blue-100'
-                        }`}>
-                          {(() => {
-                            const IconComponent = getCategoryIcon(parentCategory.name);
-                            return <IconComponent className={`w-4 h-4 ${
-                              parentCategory.name === 'Services' ? 'text-purple-600' : 'text-blue-600'
-                            }`} />;
-                          })()}
-                        </div>
-                        <div className="flex-1 text-left">
-                          <span className="font-semibold text-gray-800 text-sm">
-                            {parentCategory.name}
-                          </span>
-                          {parentCategory.description && (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {parentCategory.description}
-                            </p>
-                          )}
-                        </div>
-                        {(selectedCategory?.id === parentCategory.id || (selectedCategory === null && value === parentCategory.id)) && (
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        )}
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${getCategoryColor(parentCategory.name).replace('border-', 'border-0 ')}`}>
+                        {(() => {
+                          const IconComponent = getCategoryIcon(parentCategory.name);
+                          return <IconComponent className="w-4 h-4" />;
+                        })()}
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="font-medium text-gray-800 text-sm">
+                          {parentCategory.name}
+                        </span>
+                      </div>
+                      {(selectedCategory?.id === parentCategory.id || (selectedCategory === null && value === parentCategory.id)) && (
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      )}
                     </button>
 
-                    {/* Child Categories - Grid Layout with Pills */}
-                    <div className="p-4 bg-gray-50">
-                      <div className="grid grid-cols-2 gap-2">
+                    {/* Child Categories - Vertical List Layout */}
+                    {parentCategory.children.length > 0 && (
+                      <div className="py-1">
                         {parentCategory.children.map((childCategory) => (
                           <button
                             key={childCategory.id}
                             type="button"
                             onClick={() => handleCategorySelect(childCategory)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-full text-xs font-medium transition-all duration-200 ${
+                            className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors text-left ${
                               selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id)
-                                ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                                ? 'bg-blue-50 border-l-2 border-blue-500' 
+                                : 'border-l-2 border-transparent'
                             }`}
                           >
                             {(() => {
                               const IconComponent = getCategoryIcon(childCategory.name);
-                              return <IconComponent className={`w-3.5 h-3.5 ${
+                              return <IconComponent className={`w-4 h-4 ${
                                 selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id) ? 'text-blue-600' : 'text-gray-500'
                               }`} />;
                             })()}
-                            <span className="truncate">
+                            <span className={`text-sm ${
+                              selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id) ? 'text-blue-700 font-medium' : 'text-gray-700'
+                            }`}>
                               {childCategory.name}
                             </span>
+                            {(selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id)) && (
+                              <div className="ml-auto w-2 h-2 rounded-full bg-blue-500"></div>
+                            )}
                           </button>
                         ))}
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -321,18 +422,18 @@ export default function CategoryDropdown({
           </div>
 
           {/* Action Buttons */}
-          <div className="border-t border-gray-100 p-4 flex gap-3 bg-gray-50">
+          <div className="border-t border-gray-100 p-3 flex gap-2 bg-white">
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 px-4 py-2.5 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="flex-1 px-3 py-2 text-sm text-gray-700 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors font-medium"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleDone}
-              className="flex-1 px-4 py-2.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+              className="flex-1 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
               Done
             </button>
