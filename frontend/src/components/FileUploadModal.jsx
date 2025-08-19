@@ -1,6 +1,7 @@
 /**
- * PDF Upload Component for Bank Statements
- * Supports CIBC, RBC, and AMEX statements
+ * File Upload Modal - Universal file upload component
+ * Supports PDF, CSV, and Excel files for bank statements
+ * Can be used throughout the application
  */
 
 import React, { useState, useRef } from 'react';
@@ -15,45 +16,33 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 
-export default function PDFUpload({ onUploadSuccess, onClose }) {
-  const [dragActive, setDragActive] = useState(false);
+export default function FileUploadModal({ onUploadSuccess, onClose, title = "Upload Bank Statement", supportedTypes = ["PDF", "CSV", "Excel"] }) {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [accountId, setAccountId] = useState('1'); // Default account
   const fileInputRef = useRef(null);
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
+  const handleFileSelect = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileSelect = (e) => {
+  const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
+      uploadFile(e.target.files[0]);
     }
   };
 
-  const handleFile = (file) => {
+  const uploadFile = async (file) => {
+    if (!file) return;
+
     // Validate file type
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Please select a PDF file');
+    const allowedExtensions = ['.pdf', '.csv', '.xlsx', '.xls'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      setError('Please select a PDF, CSV, or Excel file');
       return;
     }
 
@@ -63,18 +52,11 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
       return;
     }
 
-    setSelectedFile(file);
-    setError(null);
-  };
-
-  const uploadFile = async () => {
-    if (!selectedFile) return;
-
     setUploading(true);
     setError(null);
 
     try {
-      const result = await api.transactions.uploadPDF(selectedFile, accountId);
+      const result = await api.transactions.uploadPDF(file);
       setUploadResult(result);
       
       // Notify parent component
@@ -106,7 +88,6 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
   };
 
   const reset = () => {
-    setSelectedFile(null);
     setUploadResult(null);
     setError(null);
     setUploading(false);
@@ -120,7 +101,7 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">Upload Bank Statement</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -149,6 +130,20 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
                     <span className="font-medium">{uploadResult.bank_type}</span>
                   </div>
                 </div>
+
+                {uploadResult.account_info && (
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <span className="text-sm text-blue-700">Account:</span>
+                    <div className="text-right">
+                      <div className="font-medium text-blue-900">
+                        {uploadResult.account_info.account_type} ****{uploadResult.account_info.last_4_digits}
+                      </div>
+                      <div className="text-xs text-blue-600">
+                        {uploadResult.account_info.bank_name}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <span className="text-sm text-gray-600">Transactions Found:</span>
@@ -188,65 +183,48 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
           {/* Upload State */}
           {!uploadResult && (
             <div className="space-y-4">
-              {/* Account Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Account
-                </label>
-                <select
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="1">Primary Account</option>
-                  <option value="2">Savings Account</option>
-                  <option value="3">Credit Card</option>
-                </select>
-              </div>
-
-              {/* File Upload Area */}
-              <div
-                className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragActive 
-                    ? 'border-blue-400 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-              >
+              {/* Upload Statement Button */}
+              <div className="text-center py-8">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  accept=".pdf,.csv,.xlsx,.xls"
+                  onChange={handleFileChange}
+                  className="hidden"
                 />
-
-                {selectedFile ? (
-                  <div className="space-y-3">
-                    <FileText className="h-12 w-12 text-blue-600 mx-auto" />
-                    <div>
-                      <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
+                
+                <div className="space-y-4">
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                    <Upload className="h-8 w-8 text-blue-600" />
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <Upload className="h-12 w-12 text-gray-400 mx-auto" />
-                    <div>
-                      <p className="text-lg font-medium text-gray-900">
-                        Drop your PDF here
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        or click to browse files
-                      </p>
-                    </div>
+                  
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Upload Bank Statement
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Select a {supportedTypes.join(", ")} file from your device
+                    </p>
                   </div>
-                )}
+                  
+                  <button
+                    onClick={handleFileSelect}
+                    disabled={uploading}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 mx-auto"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader className="h-5 w-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-5 w-5" />
+                        Upload Statement
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Supported Banks */}
@@ -258,6 +236,7 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
                   <span>💳 AMEX</span>
                   <span>🏦 TD</span>
                   <span>🏦 BMO</span>
+                  <span>🏦 Scotiabank</span>
                 </div>
               </div>
 
@@ -269,30 +248,13 @@ export default function PDFUpload({ onUploadSuccess, onClose }) {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
+              {/* Cancel Button */}
+              <div className="text-center">
                 <button
                   onClick={onClose}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
                 >
                   Cancel
-                </button>
-                <button
-                  onClick={uploadFile}
-                  disabled={!selectedFile || uploading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader className="h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Upload PDF
-                    </>
-                  )}
                 </button>
               </div>
             </div>

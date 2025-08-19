@@ -9,23 +9,18 @@ This module handles:
 - Statement parsing and transaction extraction
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status, Query, UploadFile, File as FastAPIFile
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import Optional, List
 from datetime import datetime, timedelta
 from decimal import Decimal
-import os
-import io
-import json
-import uuid
-from pathlib import Path
 
 from ..database import get_db
 from ..auth import get_current_user
 from ..models import (
-    User, BankAccount, File, FileStatus, FileType,
+    User, BankAccount, Account, File, FileStatus, FileType,
     Transaction, Category
 )
 
@@ -38,17 +33,42 @@ def get_bank_accounts(
     db: Session = Depends(get_db)
 ):
     """Get user's bank accounts."""
+    import logging
+    logging.info(f"Getting bank accounts for user {current_user.id}")
+    
     accounts = db.query(BankAccount).filter(
         BankAccount.user_id == current_user.id
     ).all()
     
+    logging.info(f"Found {len(accounts)} bank accounts")
+    
     result = []
     for account in accounts:
-        # Get recent transaction count
-        transaction_count = db.query(Transaction).filter(
-            Transaction.account_id == account.id,
-            Transaction.date >= datetime.now() - timedelta(days=30)
-        ).count()
+        logging.info(f"Processing BankAccount: {account.id}, {account.bank_name}, {account.account_type}, {account.account_number}")
+        
+        # Find the matching Account record for transaction counting
+        # BankAccount stores bank details, but transactions reference Account table
+        account_last_4 = account.account_number[-4:] if account.account_number and len(account.account_number) >= 4 else "0000"
+        account_name = f"{account.bank_name} {account.account_type.title()}".strip()
+        
+        logging.info(f"Looking for Account with name='{account_name}', last4='{account_last_4}', household_id={current_user.id}")
+        
+        matching_account = db.query(Account).filter(
+            Account.household_id == current_user.id,
+            Account.name == account_name,
+            Account.last4 == account_last_4
+        ).first()
+        
+        logging.info(f"Matching Account found: {matching_account}")
+        
+        # Get recent transaction count from the matching Account
+        transaction_count = 0
+        if matching_account:
+            transaction_count = db.query(Transaction).filter(
+                Transaction.account_id == matching_account.id,
+                Transaction.date >= datetime.now() - timedelta(days=30)
+            ).count()
+            logging.info(f"Transaction count: {transaction_count}")
         
         # Get last 4 digits of account number if available
         account_display = "****" + (account.account_number[-4:] if account.account_number and len(account.account_number) >= 4 else "0000")
@@ -91,10 +111,8 @@ def create_bank_account(
         user_id=current_user.id,
         bank_name=bank_name,
         account_type=account_type,
-        account_number_last4=account_number_last4,
-        balance=balance or 0,
-        is_active="active",
-        last_sync=datetime.now()
+        account_number=account_number_last4,  # Store in account_number field
+        balance=balance or 0
     )
     
     db.add(account)
@@ -107,9 +125,9 @@ def create_bank_account(
             "id": account.id,
             "bank_name": account.bank_name,
             "account_type": account.account_type,
-            "account_number": f"****{account.account_number_last4}",
+            "account_number": account.account_number or "****0000",
             "balance": float(account.balance),
-            "status": account.is_active
+            "status": "active"  # Default to active since we don't have is_active field
         }
     }
 
@@ -171,10 +189,8 @@ def delete_bank_account(
     ).count()
     
     if transaction_count > 0:
-        # Soft delete - mark as inactive instead of deleting
-        account.is_active = "inactive"
-        db.commit()
-        return {"message": "Bank account deactivated (has transactions)"}
+        # Cannot delete account with transactions - return error message
+        return {"message": "Cannot delete account with transactions", "transaction_count": transaction_count}
     else:
         # Hard delete if no transactions
         db.delete(account)
@@ -196,16 +212,13 @@ def sync_bank_account(
     if not account:
         raise HTTPException(status_code=404, detail="Bank account not found")
     
-    # Update last sync time
-    account.last_sync = datetime.now()
-    account.is_active = "active"
-    db.commit()
+    # Note: No last_sync field in current model, skipping update
+    # db.commit()  # No changes to commit
     
     # TODO: Implement actual Plaid sync logic here
     
     return {
         "message": "Account sync initiated",
-        "last_sync": account.last_sync,
         "status": "Sync completed"
     }
 
@@ -247,181 +260,7 @@ def get_uploaded_files(
     
     return {"files": result}
 
-@router.post("/files/upload")
-async def upload_file(
-    file: UploadFile = FastAPIFile(...),
-    bank_name: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Upload a bank statement file."""
-    # Validate file type
-    allowed_extensions = {".pdf", ".csv", ".xlsx", ".xls"}
-    file_ext = Path(file.filename).suffix.lower()
-    
-    if file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File type not supported. Allowed: {', '.join(allowed_extensions)}"
-        )
-    
-    # Determine file type
-    file_type = FileType.csv
-    if file_ext == ".pdf":
-        file_type = FileType.bank_statement
-    elif file_ext in [".xlsx", ".xls"]:
-        file_type = FileType.excel
-    
-    # Read file content
-    content = await file.read()
-    file_size = len(content)
-    
-    # Create unique filename
-    unique_filename = f"{uuid.uuid4()}{file_ext}"
-    
-    # TODO: Save to actual file storage (S3, local filesystem, etc.)
-    # For now, we'll just store metadata
-    
-    # Create file record
-    db_file = File(
-        user_id=current_user.id,
-        filename=unique_filename,
-        original_filename=file.filename,
-        file_size=file_size,
-        file_type=file_type,
-        bank_name=bank_name,
-        status=FileStatus.uploaded,
-        transactions_found=0
-    )
-    
-    db.add(db_file)
-    db.commit()
-    db.refresh(db_file)
-    
-    # TODO: Queue for processing
-    # For demonstration, we'll simulate processing
-    await simulate_file_processing(db_file, db, content)
-    
-    return {
-        "message": "File uploaded successfully",
-        "file_id": db_file.id,
-        "filename": file.filename,
-        "status": "uploaded"
-    }
 
-async def simulate_file_processing(db_file: File, db: Session, content: bytes):
-    """Simulate file processing (replace with actual implementation)."""
-    try:
-        # Update status to processing
-        db_file.status = FileStatus.parsing
-        db.commit()
-        
-        # Simulate parsing delay
-        import asyncio
-        await asyncio.sleep(1)
-        
-        # Mock transaction extraction
-        if db_file.file_type == FileType.csv:
-            # Simulate CSV parsing
-            transactions_found = simulate_csv_parsing(content, db_file, db)
-        elif db_file.file_type == FileType.bank_statement:
-            # Simulate PDF parsing
-            transactions_found = simulate_pdf_parsing(content, db_file, db)
-        else:
-            transactions_found = 0
-        
-        # Update file status
-        db_file.status = FileStatus.parsed
-        db_file.transactions_found = transactions_found
-        db_file.processed_at = datetime.now()
-        db.commit()
-        
-    except Exception as e:
-        # Handle processing errors
-        db_file.status = FileStatus.error
-        db_file.error_message = str(e)
-        db.commit()
-
-def simulate_csv_parsing(content: bytes, db_file: File, db: Session) -> int:
-    """Simulate CSV file parsing and transaction creation."""
-    try:
-        # Decode CSV content
-        csv_content = content.decode('utf-8')
-        lines = csv_content.strip().split('\n')
-        
-        if len(lines) < 2:  # Need header + at least one data row
-            return 0
-        
-        # Skip header and process data rows
-        transactions_created = 0
-        for line in lines[1:6]:  # Limit to first 5 transactions for demo
-            try:
-                parts = line.split(',')
-                if len(parts) >= 3:
-                    # Assume format: Date, Description, Amount
-                    date_str = parts[0].strip('"')
-                    description = parts[1].strip('"')
-                    amount_str = parts[2].strip('"')
-                    
-                    # Parse date
-                    try:
-                        transaction_date = datetime.strptime(date_str, '%Y-%m-%d')
-                    except:
-                        transaction_date = datetime.strptime(date_str, '%m/%d/%Y')
-                    
-                    # Parse amount
-                    amount = float(amount_str.replace('$', '').replace(',', ''))
-                    
-                    # Create transaction
-                    transaction = Transaction(
-                        user_id=db_file.user_id,
-                        date=transaction_date,
-                        description=description,
-                        amount=amount,
-                        source_file_id=db_file.id
-                    )
-                    
-                    db.add(transaction)
-                    transactions_created += 1
-                    
-            except Exception as e:
-                continue  # Skip invalid rows
-        
-        db.commit()
-        return transactions_created
-        
-    except Exception:
-        return 0
-
-def simulate_pdf_parsing(content: bytes, db_file: File, db: Session) -> int:
-    """Simulate PDF file parsing and transaction creation."""
-    # For demo purposes, create some mock transactions
-    try:
-        mock_transactions = [
-            {"date": "2025-08-01", "description": "Grocery Store", "amount": -125.50},
-            {"date": "2025-08-02", "description": "Gas Station", "amount": -45.00},
-            {"date": "2025-08-03", "description": "Salary Deposit", "amount": 3200.00},
-            {"date": "2025-08-04", "description": "Electric Bill", "amount": -89.99},
-        ]
-        
-        transactions_created = 0
-        for mock_txn in mock_transactions:
-            transaction = Transaction(
-                user_id=db_file.user_id,
-                date=datetime.strptime(mock_txn["date"], '%Y-%m-%d'),
-                description=mock_txn["description"],
-                amount=mock_txn["amount"],
-                source_file_id=db_file.id
-            )
-            
-            db.add(transaction)
-            transactions_created += 1
-        
-        db.commit()
-        return transactions_created
-        
-    except Exception:
-        return 0
 
 @router.delete("/files/{file_id}")
 def delete_file(
@@ -503,6 +342,70 @@ def get_file_transactions(
         "transactions": result
     }
 
+@router.get("/discovered")
+def get_discovered_banks(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get banks discovered from uploaded files."""
+    # For now, return empty since we'll get banks when files are processed by the files router
+    # This endpoint will be populated when the file processing system detects banks
+    
+    # Get existing bank accounts for this user
+    discovered_banks = db.query(BankAccount).filter(
+        BankAccount.user_id == current_user.id
+    ).all()
+    
+    result = []
+    for bank in discovered_banks:
+        # Get file count for this user (can't filter by bank_name since File model doesn't have it)
+        file_count = db.query(File).filter(
+            File.user_id == current_user.id
+        ).count()
+        
+        # Get recent transaction count
+        transaction_count = db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.date >= datetime.now() - timedelta(days=30)
+        ).count()
+        
+        # Calculate total balance from transactions
+        transactions = db.query(Transaction).filter(
+            Transaction.user_id == current_user.id
+        ).all()
+        
+        balance = sum(float(t.amount) for t in transactions if t.amount)
+        
+        result.append({
+            "id": bank.id,
+            "bank_name": bank.bank_name,
+            "account_type": bank.account_type or "Checking",
+            "account_number": f"****{bank.account_number[-4:] if bank.account_number and len(bank.account_number) >= 4 else '0000'}",
+            "balance": balance,
+            "currency": "CAD",
+            "status": "active",
+            "last_sync": bank.last_sync.isoformat() if bank.last_sync else datetime.now().isoformat(),
+            "files_uploaded": file_count,
+            "recent_transactions": transaction_count,
+            "logo": get_bank_logo(bank.bank_name),
+            "discovered_from_uploads": True
+        })
+    
+    return {"accounts": result}
+
+def get_bank_logo(bank_name: str) -> str:
+    """Get emoji logo for bank."""
+    bank_logos = {
+        "CIBC": "🏦",
+        "Royal Bank of Canada (RBC)": "🏛️", 
+        "American Express": "💳",
+        "TD Canada Trust": "🏦",
+        "Bank of Montreal (BMO)": "🏦",
+        "Scotiabank": "🏦",
+        "Tangerine": "🍊"
+    }
+    return bank_logos.get(bank_name, "🏦")
+
 @router.get("/integration-status")
 def get_integration_status(
     current_user: User = Depends(get_current_user),
@@ -516,7 +419,7 @@ def get_integration_status(
     
     integrations = []
     for account in accounts:
-        status = "connected" if account.is_active == "active" else "error"
+        status = "connected"  # Default to connected since we don't have is_active field
         
         integrations.append({
             "bank_name": account.bank_name,

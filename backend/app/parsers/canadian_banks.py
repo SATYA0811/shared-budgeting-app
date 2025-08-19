@@ -269,3 +269,114 @@ def parse_canadian_date_formats(date_str: str) -> datetime:
             continue
             
     raise ValueError(f"Unable to parse date: {date_str}")
+
+
+def extract_account_info(text: str, bank_type: str) -> Dict[str, str]:
+    """Extract account information from bank statement text."""
+    text_upper = text.upper()
+    account_info = {
+        'account_number': 'UNKNOWN',
+        'account_type': 'CHECKING',  # Default
+        'account_name': '',
+        'last_4_digits': '0000'
+    }
+    
+    if bank_type == 'CIBC':
+        # CIBC patterns
+        # Account number patterns: "Account Number: 1234 5678 901", "****1234"
+        patterns = [
+            r'ACCOUNT\s+NUMBER[:\s]*(\d{4}[\s-]*\d{4}[\s-]*\d{3,4})',
+            r'ACCOUNT[:\s]*(\d{4}[\s-]*\d{4}[\s-]*\d{3,4})',
+            r'\*{4}(\d{4})',
+            r'(\d{4})\s*CHEQUING',
+            r'(\d{4})\s*SAVINGS',
+            r'(\d{4})\s*CREDIT'
+        ]
+        
+        # Account type detection
+        if 'CHEQUING' in text_upper or 'CHECKING' in text_upper:
+            account_info['account_type'] = 'CHECKING'
+        elif 'SAVINGS' in text_upper:
+            account_info['account_type'] = 'SAVINGS'
+        elif 'CREDIT' in text_upper or 'VISA' in text_upper:
+            account_info['account_type'] = 'CREDIT'
+            
+    elif bank_type == 'RBC':
+        # RBC patterns
+        patterns = [
+            r'ACCOUNT\s+(\d{5}-\d{7})',  # RBC format: 12345-1234567
+            r'ACCOUNT[:\s]*(\d{4}[\s-]*\d{4}[\s-]*\d{3,4})',
+            r'\*{4}(\d{4})',
+            r'(\d{4})\s*CHEQUING',
+            r'(\d{4})\s*SAVINGS'
+        ]
+        
+        # RBC account type detection
+        if 'CHEQUING' in text_upper or 'CHECKING' in text_upper:
+            account_info['account_type'] = 'CHECKING'
+        elif 'SAVINGS' in text_upper or 'HIGH INTEREST' in text_upper:
+            account_info['account_type'] = 'SAVINGS'
+        elif 'CREDIT' in text_upper or 'VISA' in text_upper or 'MASTERCARD' in text_upper:
+            account_info['account_type'] = 'CREDIT'
+            
+    elif bank_type == 'AMEX':
+        # AMEX patterns - typically credit cards
+        patterns = [
+            r'CARD\s+ENDING\s+(\d{4})',
+            r'\*{4}(\d{4})',
+            r'(\d{4})\s*CREDIT',
+            r'ACCOUNT[:\s]*(\d{4}[\s-]*\d{6}[\s-]*\d{5})'  # AMEX 15-digit format
+        ]
+        account_info['account_type'] = 'CREDIT'  # AMEX is always credit
+        
+    else:
+        # Generic patterns for other banks
+        patterns = [
+            r'ACCOUNT[:\s]*(\d{4}[\s-]*\d{4}[\s-]*\d{3,4})',
+            r'\*{4}(\d{4})',
+            r'(\d{4})\s*(?:CHEQUING|SAVINGS|CREDIT)'
+        ]
+    
+    # Try to extract account number
+    for pattern in patterns:
+        match = re.search(pattern, text_upper)
+        if match:
+            account_number = match.group(1)
+            # Clean up the account number
+            clean_number = re.sub(r'[\s-]', '', account_number)
+            account_info['account_number'] = clean_number
+            
+            # Extract last 4 digits
+            if len(clean_number) >= 4:
+                account_info['last_4_digits'] = clean_number[-4:]
+            break
+    
+    return account_info
+
+
+def extract_statement_period(text: str) -> Dict[str, str]:
+    """Extract statement period from bank statement."""
+    period_info = {
+        'start_date': '',
+        'end_date': '',
+        'statement_date': ''
+    }
+    
+    text_upper = text.upper()
+    
+    # Common period patterns
+    period_patterns = [
+        r'STATEMENT\s+PERIOD[:\s]*(\w+\s+\d{1,2},?\s+\d{4})\s+TO\s+(\w+\s+\d{1,2},?\s+\d{4})',
+        r'FROM[:\s]*(\w+\s+\d{1,2},?\s+\d{4})\s+TO\s+(\w+\s+\d{1,2},?\s+\d{4})',
+        r'(\d{1,2}/\d{1,2}/\d{4})\s+TO\s+(\d{1,2}/\d{1,2}/\d{4})',
+        r'(\d{4}-\d{2}-\d{2})\s+TO\s+(\d{4}-\d{2}-\d{2})'
+    ]
+    
+    for pattern in period_patterns:
+        match = re.search(pattern, text_upper)
+        if match:
+            period_info['start_date'] = match.group(1)
+            period_info['end_date'] = match.group(2)
+            break
+    
+    return period_info

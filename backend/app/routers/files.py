@@ -31,9 +31,10 @@ from slowapi.util import get_remote_address
 
 from ..database import get_db
 from ..auth import get_current_user
-from ..models import User, File, FileStatus, Transaction, Category
+from ..models import User, File, FileStatus, Transaction, Category, Account, AccountType
 from ..config import settings
 from ..parsers import parse_canadian_bank_transactions
+from ..parsers.canadian_banks import detect_canadian_bank, extract_account_info
 
 # Import parsing libraries
 import pdfplumber
@@ -362,7 +363,48 @@ def auto_categorize_transaction(description: str, amount: float, db: Session) ->
     # Default to uncategorized
     return None
 
-def store_transactions(transactions: List[Dict[str, Any]], user_id: int, file_id: int, db: Session):
+def create_or_find_account(text: str, bank_type: str, household_id: int, db: Session) -> int:
+    """Create or find account based on parsed bank statement."""
+    # Extract account information from the statement text
+    account_info = extract_account_info(text, bank_type)
+    
+    # Map account type to AccountType enum
+    account_type_map = {
+        'CHECKING': AccountType.bank,
+        'SAVINGS': AccountType.bank, 
+        'CREDIT': AccountType.card
+    }
+    account_type = account_type_map.get(account_info['account_type'], AccountType.bank)
+    
+    # Create account name with bank and type info
+    account_name = f"{bank_type} {account_info['account_type'].title()}".strip()
+    
+    # Look for existing account by name and last 4 digits
+    existing_account = db.query(Account).filter(
+        Account.household_id == household_id,
+        Account.name == account_name,
+        Account.last4 == account_info['last_4_digits']
+    ).first()
+    
+    if existing_account:
+        return existing_account.id
+    
+    # Create new account
+    new_account = Account(
+        household_id=household_id,
+        name=account_name,
+        type=account_type,
+        last4=account_info['last_4_digits'],
+        currency='CAD'  # Canadian banks default to CAD
+    )
+    
+    db.add(new_account)
+    db.commit()
+    db.refresh(new_account)
+    
+    return new_account.id
+
+def store_transactions(transactions: List[Dict[str, Any]], user_id: int, file_id: int, account_id: int, db: Session):
     """Store parsed transactions in database with auto-categorization."""
     for transaction_data in transactions:
         try:
@@ -379,7 +421,8 @@ def store_transactions(transactions: List[Dict[str, Any]], user_id: int, file_id
                 amount=transaction_data['amount'],
                 category_id=category_id,
                 user_id=user_id,
-                source_file_id=file_id
+                source_file_id=file_id,
+                account_id=account_id  # Associate with the bank account
             )
             
             db.add(transaction)
@@ -445,9 +488,20 @@ async def upload_statement(
         # Parse file based on type
         file_ext = os.path.splitext(safe_filename.lower())[1]
         transactions = []
+        text = ""
         
         if file_ext == '.pdf':
             transactions = parse_pdf_transactions(temp_file_path)
+            # Also extract text for account creation
+            try:
+                import pdfplumber
+                with pdfplumber.open(temp_file_path) as pdf:
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+            except Exception:
+                text = ""
         elif file_ext == '.csv':
             transactions = parse_csv_transactions(temp_file_path)
         elif file_ext in ['.xlsx', '.xls']:
@@ -461,8 +515,15 @@ async def upload_statement(
             db.commit()
             raise HTTPException(status_code=400, detail="No valid transactions found in file")
         
+        # Create or find account for PDF files
+        account_id = None
+        if file_ext == '.pdf' and text:
+            bank_type = detect_canadian_bank(text)
+            if bank_type and bank_type != 'UNKNOWN':
+                account_id = create_or_find_account(text, bank_type, household_id, db)
+        
         # Store transactions
-        store_transactions(transactions, current_user.id, db_file.id, db)
+        store_transactions(transactions, current_user.id, db_file.id, account_id, db)
         
         # Update file status
         db_file.status = FileStatus.parsed

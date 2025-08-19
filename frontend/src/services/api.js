@@ -179,11 +179,16 @@ export const transactionAPI = {
     return response.data;
   },
 
-  uploadPDF: async (file, accountId) => {
+  uploadPDF: async (file, accountId = null) => {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await apiClient.post(`/transactions/upload-pdf?account_id=${accountId}`, formData, {
+    // Build URL with optional account_id parameter
+    const url = accountId 
+      ? `/transactions/upload-pdf?account_id=${accountId}`
+      : '/transactions/upload-pdf';
+    
+    const response = await apiClient.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

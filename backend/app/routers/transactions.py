@@ -31,8 +31,8 @@ from ..schemas import (
     TransactionCreate, TransactionUpdate, TransactionResponse, 
     CategorizeTransactionRequest
 )
-from ..models import User, Transaction, Category
-from ..parsers.canadian_banks import parse_canadian_bank_transactions, detect_canadian_bank
+from ..models import User, Transaction, Category, BankAccount, Account, AccountType
+from ..parsers.canadian_banks import parse_canadian_bank_transactions, detect_canadian_bank, extract_account_info
 
 # Create router
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
@@ -445,7 +445,7 @@ def get_monthly_summary(
 @router.post("/upload-pdf")
 async def upload_and_extract_transactions(
     file: UploadFile = File(...),
-    account_id: int = Query(..., description="Account ID for the transactions"),
+    account_id: Optional[int] = Query(None, description="Account ID for the transactions"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -503,6 +503,56 @@ async def upload_and_extract_transactions(
                 status_code=400, 
                 detail=f"Bank statement format not recognized. Supported: CIBC, RBC, AMEX. Text sample: {text_sample}"
             )
+        
+        # Extract account information from statement
+        account_info = extract_account_info(text_content, bank_type)
+        logging.info(f"Extracted account info: {account_info}")
+        
+        # Create or find account if not provided
+        if account_id is None:
+            # Look for existing account using name and last 4 digits
+            account_name = f"{bank_type} {account_info['account_type'].title()}".strip()
+            existing_account = db.query(Account).filter(
+                Account.household_id == current_user.id,
+                Account.name == account_name,
+                Account.last4 == account_info['last_4_digits']
+            ).first()
+            
+            if existing_account:
+                account_id = existing_account.id
+                logging.info(f"Found existing account {account_id} for {bank_type} ending in {account_info['last_4_digits']}")
+            else:
+                # Create new bank account with extracted info
+                new_bank_account = BankAccount(
+                    user_id=current_user.id,
+                    bank_name=bank_type,
+                    account_type=account_info['account_type'],
+                    account_number=f"****{account_info['last_4_digits']}",
+                    balance=0.0
+                )
+                db.add(new_bank_account)
+                
+                # Also create an Account record for transaction references
+                account_type_map = {
+                    'CHECKING': AccountType.bank,
+                    'SAVINGS': AccountType.bank, 
+                    'CREDIT': AccountType.card
+                }
+                account_type = account_type_map.get(account_info['account_type'], AccountType.bank)
+                account_name = f"{bank_type} {account_info['account_type'].title()}".strip()
+                
+                new_account = Account(
+                    household_id=current_user.id,  # Using user_id as household_id for now
+                    name=account_name,
+                    type=account_type,
+                    last4=account_info['last_4_digits'],
+                    currency='CAD'
+                )
+                db.add(new_account)
+                db.commit()
+                db.refresh(new_account)
+                account_id = new_account.id  # Use Account.id for transactions
+                logging.info(f"Created new {account_info['account_type']} account {account_id} for {bank_type} ending in {account_info['last_4_digits']}")
         
         # Parse transactions
         parsed_transactions = parse_canadian_bank_transactions(text_content)
@@ -577,6 +627,12 @@ async def upload_and_extract_transactions(
         response_data = {
             "message": f"Successfully processed {file.filename}",
             "bank_type": bank_type,
+            "account_info": {
+                "account_id": account_id,
+                "account_type": account_info['account_type'],
+                "last_4_digits": account_info['last_4_digits'],
+                "bank_name": bank_type
+            },
             "total_transactions_found": len(parsed_transactions),
             "new_transactions_added": len(saved_transactions),
             "duplicates_skipped": duplicate_count,

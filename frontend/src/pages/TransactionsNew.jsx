@@ -24,9 +24,9 @@ import {
   PlusCircle
 } from 'lucide-react';
 import api from '../services/api';
-import PDFUpload from '../components/PDFUpload';
 import QuickAddTransaction from '../components/QuickAddTransaction';
 import CategoryDropdown from '../components/CategoryDropdown';
+import FileUploadModal from '../components/FileUploadModal';
 
 // Utility function for Canadian currency formatting
 const formatCAD = (amount) => {
@@ -52,8 +52,8 @@ export default function TransactionsNew() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [showPDFUpload, setShowPDFUpload] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const [accountBalance, setAccountBalance] = useState(0);
   const [accounts, setAccounts] = useState([]);
   const [availableBanks, setAvailableBanks] = useState([]);
@@ -253,9 +253,9 @@ export default function TransactionsNew() {
 
 
 
-  const handlePDFUploadSuccess = (result) => {
-    console.log('PDF Upload successful:', result);
-    setShowPDFUpload(false);
+  const handleFileUploadSuccess = (result) => {
+    console.log('File Upload successful:', result);
+    setShowFileUpload(false);
     // Reload data to show new transactions
     loadTransactionData();
     loadFilterStats();
@@ -535,11 +535,11 @@ export default function TransactionsNew() {
 
             {/* Upload Button */}
             <button
-              onClick={() => setShowPDFUpload(true)}
+              onClick={() => setShowFileUpload(true)}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
               <Upload className="h-4 w-4" />
-              Upload PDF
+              Upload File
             </button>
 
           </div>
@@ -615,11 +615,11 @@ export default function TransactionsNew() {
         </div>
       )}
 
-      {/* PDF Upload Modal */}
-      {showPDFUpload && (
-        <PDFUpload
-          onUploadSuccess={handlePDFUploadSuccess}
-          onClose={() => setShowPDFUpload(false)}
+      {/* File Upload Modal */}
+      {showFileUpload && (
+        <FileUploadModal
+          onUploadSuccess={handleFileUploadSuccess}
+          onClose={() => setShowFileUpload(false)}
         />
       )}
 

@@ -32,17 +32,16 @@ import {
   Zap
 } from 'lucide-react';
 import api from '../services/api';
-import FileUpload from '../components/FileUpload';
+import FileUploadModal from '../components/FileUploadModal';
 
 export default function Banks() {
   const [activeTab, setActiveTab] = useState('accounts');
   const [bankAccounts, setBankAccounts] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dragActive, setDragActive] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [showPDFUpload, setShowPDFUpload] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -50,130 +49,43 @@ export default function Banks() {
 
   const loadData = async () => {
     try {
-      // Mock data with Canadian banks - replace with actual API calls
-      const accountsData = [
-        {
-          id: 1,
-          bankName: 'CIBC',
-          accountType: 'Chequing',
-          accountNumber: '****1234',
-          balance: 3250.75,
-          lastSync: '2025-08-11T10:30:00Z',
-          status: 'active',
-          logo: '🏦',
-          currency: 'CAD'
-        },
-        {
-          id: 2,
-          bankName: 'Royal Bank of Canada (RBC)',
-          accountType: 'Savings',
-          accountNumber: '****5678',
-          balance: 12850.40,
-          lastSync: '2025-08-11T09:15:00Z',
-          status: 'active',
-          logo: '🏛️',
-          currency: 'CAD'
-        },
-        {
-          id: 3,
-          bankName: 'American Express',
-          accountType: 'Credit Card',
-          accountNumber: '****9012',
-          balance: -2156.78,
-          lastSync: '2025-08-10T16:45:00Z',
-          status: 'needs_attention',
-          logo: '💳',
-          currency: 'CAD'
-        },
-        {
-          id: 4,
-          bankName: 'TD Canada Trust',
-          accountType: 'Chequing',
-          accountNumber: '****3456',
-          balance: 1875.50,
-          lastSync: '2025-08-10T14:20:00Z',
-          status: 'active',
-          logo: '🏦',
-          currency: 'CAD'
-        }
-      ];
+      // Load bank accounts and files in parallel
+      const [banksResponse, filesResponse] = await Promise.all([
+        api.banks.getAccounts(),
+        api.files.getUploadedFiles()
+      ]);
 
-      const filesData = [
-        {
-          id: 1,
-          fileName: 'cibc_statement_july_2025.pdf',
-          bankName: 'CIBC',
-          uploadDate: '2025-08-10T14:30:00Z',
-          fileSize: '2.3 MB',
-          status: 'processed',
-          transactionsFound: 45,
-          type: 'bank_statement'
-        },
-        {
-          id: 2,
-          fileName: 'rbc_statement_june_2025.pdf',
-          bankName: 'Royal Bank of Canada (RBC)',
-          uploadDate: '2025-08-09T11:20:00Z',
-          fileSize: '1.8 MB',
-          status: 'processing',
-          transactionsFound: 0,
-          type: 'bank_statement'
-        },
-        {
-          id: 3,
-          fileName: 'amex_statement_july_2025.pdf',
-          bankName: 'American Express',
-          uploadDate: '2025-08-08T09:45:00Z',
-          fileSize: '1.2 MB',
-          status: 'processed',
-          transactionsFound: 32,
-          type: 'credit_statement'
-        },
-        {
-          id: 4,
-          fileName: 'td_transactions_export.csv',
-          bankName: 'TD Canada Trust',
-          uploadDate: '2025-08-07T16:10:00Z',
-          fileSize: '456 KB',
-          status: 'processed',
-          transactionsFound: 120,
-          type: 'csv'
-        }
-      ];
+      // Process bank accounts
+      const banksData = banksResponse?.accounts || [];
+      setBankAccounts(banksData);
 
-      setBankAccounts(accountsData);
-      setUploadedFiles(filesData);
+      // Transform file data to match component expectations
+      const filesData = filesResponse.data?.files || [];
+      const transformedFiles = filesData.map(file => ({
+        id: file.id,
+        fileName: file.filename || 'Unknown File',
+        bankName: file.bank_name || 'Unknown Bank',
+        uploadDate: file.uploaded_at || new Date().toISOString(),
+        fileSize: file.file_size || '0 KB',
+        status: file.status || 'unknown',
+        transactionsFound: file.transactions_found || 0,
+        type: file.file_type || 'unknown',
+        error: file.error_message
+      }));
+      
+      setUploadedFiles(transformedFiles);
     } catch (error) {
       console.error('Error loading bank data:', error);
+      // Fallback to empty arrays if API fails
+      setBankAccounts([]);
+      setUploadedFiles([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files);
-    }
-  };
-
-  const handleFileUpload = (files) => {
-    if (files && files.length > 0) {
-      setShowFileUpload(true);
-    }
+  const handleUploadClick = () => {
+    setShowPDFUpload(true);
   };
 
   const handleUploadSuccess = (result) => {
@@ -259,22 +171,68 @@ export default function Banks() {
       {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === 'accounts' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {bankAccounts.map((account) => (
-              <BankAccountCard key={account.id} account={account} />
-            ))}
-            
-            {/* Add Account Card */}
-            <div 
-              onClick={() => setShowAddAccount(true)}
-              className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer transition-colors"
-            >
-              <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-                <Plus className="h-6 w-6 text-indigo-600" />
+          <div>
+            {bankAccounts.length === 0 ? (
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-12 text-center border border-indigo-100">
+                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Building2 className="h-10 w-10 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">No Banks Added Yet</h3>
+                <p className="text-gray-600 mb-8 max-w-lg mx-auto text-lg leading-relaxed">
+                  Get started by uploading your bank statements or CSV files. 
+                  We'll automatically detect your bank and organize your transactions.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <button 
+                    onClick={() => setActiveTab('upload')}
+                    className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-3"
+                  >
+                    <Upload className="h-5 w-5" />
+                    Upload First Statement
+                  </button>
+                  <span className="text-gray-400 hidden sm:block">or</span>
+                  <button 
+                    onClick={() => setShowAddAccount(true)}
+                    className="bg-white hover:bg-gray-50 text-gray-700 px-8 py-4 rounded-xl font-semibold border-2 border-gray-200 hover:border-gray-300 transition-all duration-200 flex items-center gap-3"
+                  >
+                    <Plus className="h-5 w-5" />
+                    Add Account Manually
+                  </button>
+                </div>
+                <div className="mt-8 flex items-center justify-center gap-6 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span>Supports PDF, CSV, Excel</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <span>Auto bank detection</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                    <span>Secure processing</span>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Add New Account</h3>
-              <p className="text-sm text-gray-600">Connect your bank account for automatic transaction import</p>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {bankAccounts.map((account) => (
+                  <BankAccountCard key={account.id} account={account} />
+                ))}
+                
+                {/* Add Account Card */}
+                <div 
+                  onClick={() => setShowAddAccount(true)}
+                  className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer transition-colors"
+                >
+                  <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                    <Plus className="h-6 w-6 text-indigo-600" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Add Manual Account</h3>
+                  <p className="text-sm text-gray-600">Manually add a bank account for tracking</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -337,17 +295,7 @@ export default function Banks() {
         {activeTab === 'upload' && (
           <div className="space-y-6">
             {/* Upload Area */}
-            <div
-              className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-colors ${
-                dragActive 
-                  ? 'border-indigo-400 bg-indigo-50' 
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
+            <div className="bg-white rounded-xl shadow-sm p-12 text-center">
               <div className="flex flex-col items-center">
                 <div className="w-16 h-16 bg-indigo-100 rounded-lg flex items-center justify-center mb-6">
                   <Upload className="h-8 w-8 text-indigo-600" />
@@ -356,33 +304,18 @@ export default function Banks() {
                   Upload Bank Statements
                 </h3>
                 <p className="text-gray-600 mb-6 max-w-md">
-                  Drag and drop your PDF bank statements, CSV files, or click to browse.
+                  Upload your PDF bank statements, CSV files, or Excel documents.
+                  We'll automatically detect your bank and create accounts for you.
                   Supported formats: PDF, CSV, Excel
                 </p>
                 
-                <div className="flex items-center gap-4">
-                  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.csv,.xlsx,.xls"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="btn-primary cursor-pointer"
-                  >
-                    Choose Files
-                  </label>
-                  <button
-                    onClick={() => setShowFileUpload(true)}
-                    className="btn-secondary"
-                  >
-                    Upload Statement
-                  </button>
-                  <span className="text-sm text-gray-500">or drag and drop</span>
-                </div>
+                <button
+                  onClick={handleUploadClick}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Upload className="h-5 w-5" />
+                  Upload Statement
+                </button>
               </div>
             </div>
 
@@ -394,7 +327,7 @@ export default function Banks() {
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-2">PDF Statements</h3>
                 <p className="text-sm text-gray-600">
-                  Upload monthly bank statements in PDF format. We'll automatically extract transactions.
+                  Upload monthly bank statements in PDF format. We'll automatically detect your bank and extract transactions.
                 </p>
               </div>
               
@@ -462,10 +395,12 @@ export default function Banks() {
       </div>
 
       {/* File Upload Modal */}
-      {showFileUpload && (
-        <FileUpload
+      {showPDFUpload && (
+        <FileUploadModal
+          title="Upload Bank Statement"
+          supportedTypes={["PDF", "CSV", "Excel"]}
           onUploadSuccess={handleUploadSuccess}
-          onClose={() => setShowFileUpload(false)}
+          onClose={() => setShowPDFUpload(false)}
         />
       )}
     </div>
@@ -499,8 +434,8 @@ function BankAccountCard({ account }) {
         <div className="flex items-center">
           <div className="text-2xl mr-3">{account.logo}</div>
           <div>
-            <h3 className="font-semibold text-gray-900">{account.bankName}</h3>
-            <p className="text-sm text-gray-600">{account.accountType} {account.accountNumber}</p>
+            <h3 className="font-semibold text-gray-900">{account.bank_name}</h3>
+            <p className="text-sm text-gray-600">{account.account_type} {account.account_number}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -522,7 +457,7 @@ function BankAccountCard({ account }) {
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">Last Sync</span>
           <span className="text-sm text-gray-900">
-            {new Date(account.lastSync).toLocaleString('en-CA', {
+            {new Date(account.last_sync).toLocaleString('en-CA', {
               year: 'numeric',
               month: '2-digit', 
               day: '2-digit',
@@ -531,6 +466,13 @@ function BankAccountCard({ account }) {
             })}
           </span>
         </div>
+
+        {account.discovered_from_uploads && (
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">Files Uploaded</span>
+            <span className="text-sm text-gray-900">{account.files_uploaded || 0}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 mt-6">
