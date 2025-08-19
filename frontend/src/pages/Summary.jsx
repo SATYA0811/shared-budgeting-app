@@ -16,7 +16,8 @@ import {
   Plus,
   ArrowRight,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  CreditCard
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -38,19 +39,46 @@ export default function Summary() {
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        const [transactions, categories, insights, goals, monthlyReport] = await Promise.all([
-          api.transactions.getTransactions({ limit: 5 }),
-          api.categories.getCategories(),
-          api.analytics.getFinancialInsights(),
-          api.goals.getGoals(),
-          api.analytics.getMonthlyReport(2025, 8)
+        console.log('Loading dashboard data (Income category only)...', new Date().toLocaleTimeString());
+        
+        // Load core data that's required
+        const [transactions, categories] = await Promise.all([
+          api.transactions.getTransactions({ limit: 5 }).catch(err => {
+            console.error('Failed to load transactions:', err);
+            return [];
+          }),
+          api.categories.getCategories().catch(err => {
+            console.error('Failed to load categories:', err);
+            return [];
+          })
         ]);
+
+        // Load optional data with fallbacks
+        const insights = await api.analytics.getFinancialInsights().catch(err => {
+          console.error('Failed to load insights:', err);
+          return [];
+        });
+
+        const goalsResponse = await api.goals.getGoals().catch(err => {
+          console.error('Failed to load goals:', err);
+          return { goals: [] };
+        });
+
+        const monthlyReport = await api.analytics.getMonthlyReport(2025, 8).catch(err => {
+          console.error('Failed to load monthly report:', err);
+          return {
+            total_income: 0,
+            total_expenses: 0,
+            net_savings: 0,
+            savings_rate: 0
+          };
+        });
 
         setData({
           transactions: transactions || [],
           categories: categories || [],
           insights: insights || [],
-          goals: goals || []
+          goals: goalsResponse.goals || goalsResponse || []
         });
 
         setStats({
@@ -59,8 +87,23 @@ export default function Summary() {
           balance: monthlyReport.net_savings || 0,
           savingsRate: monthlyReport.savings_rate || 0
         });
+
+        console.log('Dashboard data loaded successfully');
       } catch (error) {
         console.error('Error loading dashboard data:', error);
+        // Set empty defaults if everything fails
+        setData({
+          transactions: [],
+          categories: [],
+          insights: [],
+          goals: []
+        });
+        setStats({
+          totalIncome: 0,
+          totalExpenses: 0,
+          balance: 0,
+          savingsRate: 0
+        });
       } finally {
         setLoading(false);
       }
@@ -146,14 +189,22 @@ export default function Summary() {
             <h3 className="text-lg font-semibold mb-4">Budget Performance</h3>
             
             <div className="space-y-4">
-              {data.categories.slice(0, 5).map((category) => (
-                <BudgetBar
-                  key={category.id}
-                  category={category.name}
-                  spent={Math.random() * category.default_budget}
-                  budget={category.default_budget}
-                />
-              ))}
+              {data.categories
+                .filter((category) => 
+                  category.name !== 'Income' && 
+                  category.name !== 'Self Transfer' &&
+                  category.default_budget && 
+                  category.default_budget > 0
+                )
+                .slice(0, 5)
+                .map((category) => (
+                  <BudgetBar
+                    key={category.id}
+                    category={category.name}
+                    spent={Math.random() * category.default_budget}
+                    budget={category.default_budget}
+                  />
+                ))}
             </div>
             
             <Link 
@@ -303,14 +354,17 @@ function TransactionRow({ transaction }) {
 }
 
 function BudgetBar({ category, spent, budget }) {
-  const percentage = Math.min((spent / budget) * 100, 100);
-  const isOverBudget = spent > budget;
+  // Safety checks for edge cases
+  const safeSpent = spent || 0;
+  const safeBudget = budget || 1; // Avoid division by zero
+  const percentage = Math.min((safeSpent / safeBudget) * 100, 100);
+  const isOverBudget = safeSpent > safeBudget;
   
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <span className="font-medium text-gray-700">{category}</span>
-        <span className="text-gray-500">${spent.toFixed(0)} / ${budget.toFixed(0)}</span>
+        <span className="text-gray-500">${safeSpent.toFixed(0)} / ${safeBudget.toFixed(0)}</span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">
         <div 

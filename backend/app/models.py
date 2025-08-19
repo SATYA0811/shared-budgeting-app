@@ -120,11 +120,9 @@ class Category(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     description = Column(String)
-    parent_id = Column(Integer, ForeignKey('categories.id'))
     default_budget = Column(Numeric)
     
     # Relationships
-    parent = relationship("Category", remote_side=[id])
     transactions = relationship("Transaction", back_populates="category")
 
 class Income(Base):

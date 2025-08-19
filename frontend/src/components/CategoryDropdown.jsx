@@ -1,17 +1,18 @@
 /**
  * CategoryDropdown Component - Simple and Compact
  * 
- * Matches the UI design with parent categories and subcategories
+ * Displays categories in a flat list for easy selection
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Tag, Utensils, Car, ShoppingBag, ShoppingCart, Film, Calendar, MapPin, Heart, Dumbbell, Wrench, Receipt, Repeat, CreditCard, TrendingUp, Users, Shield, FileText, Wallet, Baby, MoreHorizontal, ArrowRightLeft, PiggyBank, Gift, Shirt, Zap, Hammer, Camera, Gauge, Paintbrush, FileStack, Scale, Truck, Settings, Coffee, Pizza, Wine, Soup, IceCream, Apple, Cherry, Fish, GlassWater, Scissors, Package, Droplets, Fuel, Bus, Bike, Train, Plane, Home, Building, Store, Gamepad2, Music, Headphones, Tv, Book, Briefcase, GraduationCap, Stethoscope, Pill, Hospital, Flower2, Diamond, Watch, Glasses, Footprints, Brush, Palette, Cake } from 'lucide-react';
+import { Search, ChevronDown, Tag, Utensils, Car, ShoppingBag, ShoppingCart, Film, Calendar, MapPin, Heart, Dumbbell, Wrench, CreditCard, TrendingUp, Users, Shield, FileText, Wallet, Baby, MoreHorizontal, ArrowRightLeft, PiggyBank, Gift, DollarSign, CreditCard as BillIcon, Tv as SubscriptionIcon } from 'lucide-react';
 import api from '../services/api';
 
 // Category icon mapping
 const getCategoryIcon = (categoryName) => {
   const iconMap = {
-    // Parent categories
+    // Main categories
+    'Income': DollarSign,
     'Food & Drinks': Utensils,
     'Transport': Car,
     'Shopping': ShoppingBag,
@@ -23,8 +24,8 @@ const getCategoryIcon = (categoryName) => {
     'Personal': Users,
     'Fitness': Dumbbell,
     'Services': Wrench,
-    'Bill': Receipt,
-    'Subscription': Repeat,
+    'Bills': BillIcon,
+    'Subscriptions': SubscriptionIcon,
     'EMI': CreditCard,
     'Credit Bill': CreditCard,
     'Investment': TrendingUp,
@@ -33,102 +34,10 @@ const getCategoryIcon = (categoryName) => {
     'Tax': FileText,
     'Top-up': Wallet,
     'Children': Baby,
-    'Misc.': MoreHorizontal,
+    'Miscellaneous': MoreHorizontal,
     'Self Transfer': ArrowRightLeft,
     'Savings': PiggyBank,
-    'Gift': Gift,
-    
-    // Child categories - Services (as shown in your image)
-    'Laundry': Droplets,
-    'Tailor': Scissors,
-    'Courier': Package,
-    'Carpenter': Hammer,
-    'Plumber': Wrench,
-    'Mechanic': Settings,
-    'Photographer': Camera,
-    'Driver': Car,
-    'Vehicle Wash': Car,
-    'Electrician': Zap,
-    'Painting': Paintbrush,
-    'Xerox': FileStack,
-    'Legal': Scale,
-    'Advisor': Users,
-    'Repair': Wrench,
-    'Logistics': Truck,
-    
-    // Food & Drinks subcategories  
-    'Eating out': Utensils,
-    'Take Away': ShoppingBag,
-    'Tea & Coffee': Coffee,
-    'Fast Food': Pizza,
-    'Snacks': Apple,
-    'Swiggy': Utensils,
-    'Zomato': Utensils,
-    'Sweets': Cake,
-    'Liquor': Wine,
-    'Beverages': GlassWater,
-    'Tiffin': Soup,
-    'Pizza': Pizza,
-    'Data': Fish,
-    'Others': MoreHorizontal,
-    
-    // More Food & Drinks options
-    'Candy': Cherry,
-    'Meat': Fish,
-    'Desserts': IceCream,
-    'Bakery': Coffee,
-    'Alcohol': Wine,
-    'Beer': Wine,
-    'Fruits': Apple,
-    'Dairy': GlassWater,
-    
-    // Transport subcategories
-    'Uber': Car,
-    'Rapido': Car,
-    'Auto': Car,
-    'Cab': Car,
-    'Bus': Bus,
-    'Train': Train,
-    'Flight': Plane,
-    'Bike': Bike,
-    'Fuel': Fuel,
-    'Parking': Car,
-    
-    // Shopping subcategories
-    'Clothes': Shirt,
-    'Electronics': ShoppingBag,
-    'Jewelry': Diamond,
-    'Books': Book,
-    'Footwear': Footprints,
-    'Accessories': Watch,
-    'Home Decor': Home,
-    'Furniture': Building,
-    'Toys': Gamepad2,
-    'Sports': Dumbbell,
-    
-    // Entertainment subcategories
-    'Movies': Film,
-    'Music': Music,
-    'Games': Gamepad2,
-    'TV': Tv,
-    'Concerts': Music,
-    'Parties': Calendar,
-    
-    // Personal subcategories
-    'Beauty': Brush,
-    'Salon': Scissors,
-    'Spa': Flower2,
-    'Glasses': Glasses,
-    'Healthcare': Stethoscope,
-    'Medicine': Pill,
-    'Hospital': Hospital,
-    'Dental': Heart,
-    
-    // Education & Work
-    'Education': GraduationCap,
-    'Training': Book,
-    'Office': Briefcase,
-    'Stationery': FileText,
+    'Gifts': Gift,
   };
 
   const IconComponent = iconMap[categoryName] || Tag;
@@ -145,6 +54,7 @@ export default function CategoryDropdown({
   const [searchTerm, setSearchTerm] = useState('');
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, right: 'auto' });
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -159,9 +69,28 @@ export default function CategoryDropdown({
       }
     };
 
+    const handleResize = () => {
+      if (isOpen) {
+        calculateDropdownPosition();
+      }
+    };
+
+    const handleScroll = () => {
+      if (isOpen) {
+        calculateDropdownPosition();
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, true);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen]);
 
   const loadCategories = async () => {
     try {
@@ -175,73 +104,88 @@ export default function CategoryDropdown({
     }
   };
 
-  // Group categories by parent-child relationship
-  const getGroupedCategories = () => {
+  // Get categories as a flat list (no parent-child grouping)
+  const getFlatCategories = () => {
     if (!Array.isArray(categories) || categories.length === 0) {
       return [];
     }
-
-    const parentCategories = categories.filter(cat => !cat.parent_id);
-    const childCategories = categories.filter(cat => cat.parent_id);
-
-    return parentCategories.map(parent => ({
-      ...parent,
-      children: childCategories.filter(child => child.parent_id === parent.id)
-    }));
+    return categories;
   };
 
   // Filter categories based on search term
   const getFilteredCategories = () => {
-    const grouped = getGroupedCategories();
-    if (!searchTerm) return grouped;
+    const flatCategories = getFlatCategories();
+    if (!searchTerm) return flatCategories;
 
-    return grouped.map(parent => {
-      const matchingChildren = parent.children.filter(child =>
-        child.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-      const parentMatches = parent.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-      if (parentMatches || matchingChildren.length > 0) {
-        return {
-          ...parent,
-          children: parentMatches ? parent.children : matchingChildren
-        };
-      }
-      return null;
-    }).filter(Boolean);
+    return flatCategories.filter(category =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   };
 
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [activeParentCategory, setActiveParentCategory] = useState(null);
 
   const handleCategorySelect = (category) => {
-    setSelectedCategory(category);
-    // Don't close dropdown immediately - let user click Done
+    onChange(category);
+    setIsOpen(false);
+    setSearchTerm('');
   };
 
-  const handleDone = () => {
-    if (selectedCategory) {
-      onChange(selectedCategory);
+
+  const handleCategoryClick = (category) => {
+    handleCategorySelect(category);
+  };
+
+  // Calculate dropdown position to prevent overflow
+  const calculateDropdownPosition = () => {
+    if (!dropdownRef.current) return;
+    
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const dropdownWidth = 320; // width of dropdown (w-80 = 20rem = 320px)
+    const dropdownHeight = 480; // max-height of dropdown
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const padding = 8; // minimum padding from viewport edge
+    
+    // For mobile devices, use full width with padding
+    const isMobile = viewportWidth < 640; // sm breakpoint
+    const effectiveWidth = isMobile ? Math.min(dropdownWidth, viewportWidth - padding * 2) : dropdownWidth;
+    
+    let position = {
+      top: rect.bottom + padding,
+      left: rect.left,
+      right: 'auto',
+      width: isMobile ? effectiveWidth : undefined
+    };
+    
+    // For mobile, center the dropdown
+    if (isMobile) {
+      position.left = (viewportWidth - effectiveWidth) / 2;
+    } else {
+      // Check if dropdown would overflow right edge
+      if (rect.left + dropdownWidth > viewportWidth - padding) {
+        // Position from right edge instead
+        position.left = 'auto';
+        position.right = viewportWidth - rect.right;
+        
+        // If still overflowing, align to right edge of viewport
+        if (position.right + dropdownWidth > viewportWidth - padding) {
+          position.left = viewportWidth - dropdownWidth - padding;
+          position.right = 'auto';
+        }
+      }
     }
-    setIsOpen(false);
-    setSearchTerm('');
-    setSelectedCategory(null);
-    setActiveParentCategory(null);
-  };
-
-  const handleCancel = () => {
-    setSelectedCategory(null);
-    setActiveParentCategory(null);
-    setIsOpen(false);
-    setSearchTerm('');
-  };
-
-  const handleParentCategoryClick = (parentCategory) => {
-    // Set this parent as active (for UI feedback)
-    setActiveParentCategory(parentCategory);
-    // Also set it as selected (in case user wants to select the parent directly)
-    setSelectedCategory(parentCategory);
+    
+    // Check if dropdown would overflow bottom edge
+    if (rect.bottom + dropdownHeight > viewportHeight - padding) {
+      // Position above the trigger instead
+      position.top = rect.top - dropdownHeight - padding;
+      
+      // If still overflowing top, position within viewport
+      if (position.top < padding) {
+        position.top = padding;
+      }
+    }
+    
+    setDropdownPosition(position);
   };
 
   const getSelectedCategory = () => {
@@ -270,32 +214,28 @@ export default function CategoryDropdown({
     return colorMap[parentCategoryName] || 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
-  // Get parent category for a child category
-  const getParentCategoryName = (category) => {
-    if (!category) return null;
-    if (!category.parent_id) return category.name;
-    const parent = categories.find(cat => cat.id === category.parent_id);
-    return parent ? parent.name : category.name;
-  };
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Trigger Button - Styled as Badge */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) {
+            calculateDropdownPosition();
+          }
+          setIsOpen(!isOpen);
+        }}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
           value ? (() => {
             const selectedCategory = getSelectedCategory();
-            const parentName = getParentCategoryName(selectedCategory);
-            return getCategoryColor(selectedCategory?.name, parentName);
+            return getCategoryColor(selectedCategory?.name);
           })() : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
         }`}
       >
         {(() => {
           const selectedCategory = getSelectedCategory();
           if (selectedCategory) {
-            // Always use the specific category's icon (whether parent or child)
             const IconComponent = getCategoryIcon(selectedCategory.name);
             return <IconComponent className="w-3.5 h-3.5 flex-shrink-0" />;
           }
@@ -307,9 +247,6 @@ export default function CategoryDropdown({
             if (!selectedCategory) {
               return placeholder;
             }
-            
-            // If it's a subcategory, show the subcategory name
-            // If it's a parent category, show the parent category name
             return selectedCategory.name;
           })()}
         </span>
@@ -319,10 +256,12 @@ export default function CategoryDropdown({
       {/* Dropdown Menu */}
       {isOpen && (
         <div 
-          className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-2xl w-80 max-h-[480px] overflow-hidden"
+          className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-[480px] overflow-hidden"
           style={{
-            top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 8 : 0,
-            left: dropdownRef.current ? Math.max(8, dropdownRef.current.getBoundingClientRect().left - 100) : 0,
+            top: dropdownPosition.top,
+            left: dropdownPosition.left !== 'auto' ? dropdownPosition.left : undefined,
+            right: dropdownPosition.right !== 'auto' ? dropdownPosition.right : undefined,
+            width: dropdownPosition.width || '320px',
             boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
           }}
         >
@@ -347,65 +286,33 @@ export default function CategoryDropdown({
               <div className="p-4 text-center text-gray-500 text-sm">Loading categories...</div>
             ) : filteredCategories.length > 0 ? (
               <div className="py-1">
-                {filteredCategories.map((parentCategory) => (
-                  <div key={parentCategory.id}>
-                    {/* Parent Category Header */}
-                    <button
-                      type="button"
-                      onClick={() => handleParentCategoryClick(parentCategory)}
-                      className={`w-full px-3 py-2.5 bg-white hover:bg-gray-50 transition-colors flex items-center gap-3 ${
-                        activeParentCategory?.id === parentCategory.id || selectedCategory?.id === parentCategory.id || (selectedCategory === null && value === parentCategory.id) ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center ${getCategoryColor(parentCategory.name).replace('border-', 'border-0 ')}`}>
-                        {(() => {
-                          const IconComponent = getCategoryIcon(parentCategory.name);
-                          return <IconComponent className="w-4 h-4" />;
-                        })()}
-                      </div>
-                      <div className="flex-1 text-left">
-                        <span className="font-medium text-gray-800 text-sm">
-                          {parentCategory.name}
-                        </span>
-                      </div>
-                      {(selectedCategory?.id === parentCategory.id || (selectedCategory === null && value === parentCategory.id)) && (
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                {filteredCategories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => handleCategoryClick(category)}
+                    className={`w-full px-3 py-2.5 bg-white hover:bg-gray-50 transition-colors flex items-center gap-3 ${
+                      value === category.id ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${getCategoryColor(category.name).replace('border-', 'border-0 ')}`}>
+                      {(() => {
+                        const IconComponent = getCategoryIcon(category.name);
+                        return <IconComponent className="w-4 h-4" />;
+                      })()}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="font-medium text-gray-800 text-sm">
+                        {category.name}
+                      </span>
+                      {category.description && (
+                        <p className="text-xs text-gray-500 mt-0.5">{category.description}</p>
                       )}
-                    </button>
-
-                    {/* Child Categories - Vertical List Layout */}
-                    {parentCategory.children.length > 0 && (
-                      <div className="py-1">
-                        {parentCategory.children.map((childCategory) => (
-                          <button
-                            key={childCategory.id}
-                            type="button"
-                            onClick={() => handleCategorySelect(childCategory)}
-                            className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors text-left ${
-                              selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id)
-                                ? 'bg-blue-50 border-l-2 border-blue-500' 
-                                : 'border-l-2 border-transparent'
-                            }`}
-                          >
-                            {(() => {
-                              const IconComponent = getCategoryIcon(childCategory.name);
-                              return <IconComponent className={`w-4 h-4 ${
-                                selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id) ? 'text-blue-600' : 'text-gray-500'
-                              }`} />;
-                            })()}
-                            <span className={`text-sm ${
-                              selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id) ? 'text-blue-700 font-medium' : 'text-gray-700'
-                            }`}>
-                              {childCategory.name}
-                            </span>
-                            {(selectedCategory?.id === childCategory.id || (selectedCategory === null && value === childCategory.id)) && (
-                              <div className="ml-auto w-2 h-2 rounded-full bg-blue-500"></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+                    </div>
+                    {value === category.id && (
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : categories.length === 0 ? (
@@ -421,23 +328,6 @@ export default function CategoryDropdown({
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="border-t border-gray-100 p-3 flex gap-2 bg-white">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="flex-1 px-3 py-2 text-sm text-gray-700 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleDone}
-              className="flex-1 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Done
-            </button>
-          </div>
         </div>
       )}
     </div>

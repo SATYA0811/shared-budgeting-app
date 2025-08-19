@@ -166,15 +166,21 @@ def get_monthly_report(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date")
     
-    # Get income and expenses for the month
+    # Get income and expenses for the month from transactions
+    # Income: transactions categorized as "Income" only
+    income_category = db.query(Category).filter(Category.name == "Income").first()
+    income_category_id = income_category.id if income_category else None
+    
     income_total = db.query(
-        func.sum(Income.amount)
+        func.sum(Transaction.amount)
     ).filter(
-        Income.user_id == current_user.id,
-        Income.date >= start_date,
-        Income.date <= end_date
+        Transaction.user_id == current_user.id,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+        Transaction.category_id == income_category_id
     ).scalar() or Decimal(0)
     
+    # Expenses: negative amounts in transactions (converted to positive for calculations)
     expense_total = db.query(
         func.sum(case((Transaction.amount < 0, Transaction.amount * -1), else_=0))
     ).filter(

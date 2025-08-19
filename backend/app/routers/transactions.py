@@ -156,6 +156,7 @@ def get_transactions_grouped_by_month(
     category_id: Optional[int] = Query(None, description="Filter by category"),
     bank_filter: Optional[str] = Query(None, description="Filter by bank"),
     has_category: Optional[bool] = Query(None, description="Filter tagged/untagged"),
+    time_filter: Optional[str] = Query(None, description="Time filter: 7days, 30days, 90days, 6months, 1year"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -167,13 +168,33 @@ def get_transactions_grouped_by_month(
     # Base query with filters
     base_query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
     
-    # Apply year filter
-    start_of_year = datetime(year, 1, 1)
-    end_of_year = datetime(year + 1, 1, 1)
-    base_query = base_query.filter(
-        Transaction.date >= start_of_year,
-        Transaction.date < end_of_year
-    )
+    # Apply time filter (overrides year filter if specified)
+    if time_filter:
+        now = datetime.now()
+        if time_filter == '7days':
+            start_date = now - timedelta(days=7)
+        elif time_filter == '30days':
+            start_date = now - timedelta(days=30)
+        elif time_filter == '90days':
+            start_date = now - timedelta(days=90)
+        elif time_filter == '6months':
+            start_date = now - timedelta(days=180)
+        elif time_filter == '1year':
+            start_date = now - timedelta(days=365)
+        else:
+            start_date = None
+            
+        if start_date:
+            print(f"🔍 Time filter applied: {time_filter} -> filtering from {start_date.strftime('%Y-%m-%d')} to {now.strftime('%Y-%m-%d')}")
+            base_query = base_query.filter(Transaction.date >= start_date)
+    else:
+        # Apply year filter only if no time filter is specified
+        start_of_year = datetime(year, 1, 1)
+        end_of_year = datetime(year + 1, 1, 1)
+        base_query = base_query.filter(
+            Transaction.date >= start_of_year,
+            Transaction.date < end_of_year
+        )
     
     # Apply search filter
     if search:
