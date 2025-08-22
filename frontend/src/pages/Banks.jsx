@@ -93,6 +93,18 @@ export default function Banks() {
     loadData(); // Reload data after successful upload
   };
 
+  const handleEditAccount = (account) => {
+    console.log('Edit account:', account);
+    // TODO: Implement edit account functionality
+    alert(`Edit functionality for ${account.bank_name} account coming soon!`);
+  };
+
+  const handleSyncAccount = async (account) => {
+    console.log('Sync account:', account);
+    // TODO: Implement sync account functionality
+    alert(`Sync functionality for ${account.bank_name} account coming soon!`);
+  };
+
   const toggleFileSelection = (fileId) => {
     setSelectedFiles(prev =>
       prev.includes(fileId)
@@ -217,7 +229,12 @@ export default function Banks() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {bankAccounts.map((account) => (
-                  <BankAccountCard key={account.id} account={account} />
+                  <BankAccountCard 
+                    key={account.id} 
+                    account={account} 
+                    onEdit={handleEditAccount}
+                    onSync={handleSyncAccount}
+                  />
                 ))}
                 
                 {/* Add Account Card */}
@@ -408,7 +425,7 @@ export default function Banks() {
 }
 
 // Helper Components
-function BankAccountCard({ account }) {
+function BankAccountCard({ account, onEdit, onSync }) {
   const getStatusColor = (status) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800';
@@ -476,11 +493,17 @@ function BankAccountCard({ account }) {
       </div>
 
       <div className="flex gap-2 mt-6">
-        <button className="flex-1 btn-secondary text-sm">
+        <button 
+          onClick={() => onSync?.(account)}
+          className="flex-1 btn-secondary text-sm hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+        >
           <RefreshCw className="h-4 w-4 mr-1" />
           Sync
         </button>
-        <button className="flex-1 btn-secondary text-sm">
+        <button 
+          onClick={() => onEdit?.(account)}
+          className="flex-1 btn-secondary text-sm hover:bg-gray-50 transition-colors"
+        >
           <Edit3 className="h-4 w-4 mr-1" />
           Edit
         </button>

@@ -32,7 +32,7 @@ from ..schemas import (
     CategorizeTransactionRequest
 )
 from ..models import User, Transaction, Category, BankAccount, Account, AccountType
-from ..parsers.canadian_banks import parse_canadian_bank_transactions, detect_canadian_bank, extract_account_info
+from ..parsers.canadian_banks import parse_canadian_bank_transactions, detect_canadian_bank, extract_account_info, extract_account_balance, map_pdf_category_to_system_id
 
 # Create router
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
@@ -508,6 +508,10 @@ async def upload_and_extract_transactions(
         account_info = extract_account_info(text_content, bank_type)
         logging.info(f"Extracted account info: {account_info}")
         
+        # Extract account balance from statement
+        account_balance = extract_account_balance(text_content, bank_type)
+        logging.info(f"Extracted account balance: ${account_balance:.2f}")
+        
         # Create or find account if not provided
         if account_id is None:
             # Look for existing account using name and last 4 digits
@@ -522,15 +526,28 @@ async def upload_and_extract_transactions(
                 account_id = existing_account.id
                 logging.info(f"Found existing account {account_id} for {bank_type} ending in {account_info['last_4_digits']}")
             else:
-                # Create new bank account with extracted info
-                new_bank_account = BankAccount(
-                    user_id=current_user.id,
-                    bank_name=bank_type,
-                    account_type=account_info['account_type'],
-                    account_number=f"****{account_info['last_4_digits']}",
-                    balance=0.0
-                )
-                db.add(new_bank_account)
+                # Check for existing bank account first
+                existing_bank_account = db.query(BankAccount).filter(
+                    BankAccount.user_id == current_user.id,
+                    BankAccount.bank_name == bank_type,
+                    BankAccount.account_type == account_info['account_type'],
+                    BankAccount.account_number == f"****{account_info['last_4_digits']}"
+                ).first()
+                
+                if not existing_bank_account:
+                    # Create new bank account with extracted info and balance
+                    new_bank_account = BankAccount(
+                        user_id=current_user.id,
+                        bank_name=bank_type,
+                        account_type=account_info['account_type'],
+                        account_number=f"****{account_info['last_4_digits']}",
+                        balance=account_balance  # Use extracted balance from PDF
+                    )
+                    db.add(new_bank_account)
+                else:
+                    # Update existing bank account balance with latest from PDF
+                    existing_bank_account.balance = account_balance
+                    logging.info(f"Updated existing bank account balance to ${account_balance:.2f}")
                 
                 # Also create an Account record for transaction references
                 account_type_map = {
@@ -585,12 +602,20 @@ async def upload_and_extract_transactions(
                     duplicate_count += 1
                     continue
                 
-                # Create new transaction
+                # Map PDF category to system category
+                category_id = None
+                if 'pdf_category' in trans_data and trans_data['pdf_category']:
+                    category_id = map_pdf_category_to_system_id(trans_data['pdf_category'])
+                    if category_id:
+                        logging.info(f"Auto-categorized transaction as category_id {category_id} from PDF category '{trans_data['pdf_category']}'")
+                
+                # Create new transaction with auto-assigned category
                 new_transaction = Transaction(
                     account_id=account_id,
                     date=trans_data['date'],
                     description=trans_data['description'],
                     amount=trans_data['amount'],
+                    category_id=category_id,  # Auto-assign category from PDF
                     user_id=current_user.id
                 )
                 

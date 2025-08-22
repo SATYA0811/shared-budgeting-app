@@ -21,7 +21,8 @@ import {
   X,
   Loader,
   Wallet,
-  PlusCircle
+  PlusCircle,
+  Trash2
 } from 'lucide-react';
 import api from '../services/api';
 import QuickAddTransaction from '../components/QuickAddTransaction';
@@ -64,6 +65,9 @@ export default function TransactionsNew() {
     bank: false
   });
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [selectedTransactions, setSelectedTransactions] = useState(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -337,6 +341,81 @@ export default function TransactionsNew() {
     }
   };
 
+  // Selection functions
+  const toggleTransactionSelection = (transactionId) => {
+    setSelectedTransactions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId);
+      } else {
+        newSet.add(transactionId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllVisibleTransactions = () => {
+    const allVisibleIds = new Set();
+    if (showSearchResults) {
+      searchResults.forEach(transaction => allVisibleIds.add(transaction.id));
+    } else {
+      monthlyGroups.forEach(group => {
+        group.transactions.forEach(transaction => allVisibleIds.add(transaction.id));
+      });
+    }
+    setSelectedTransactions(allVisibleIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedTransactions(new Set());
+  };
+
+  const deleteSelectedTransactions = async () => {
+    try {
+      setIsDeleting(true);
+      const transactionIds = Array.from(selectedTransactions);
+      
+      // Use bulk delete endpoint
+      await api.transactions.bulkDelete(transactionIds);
+      
+      // Clear selection and reload data
+      setSelectedTransactions(new Set());
+      setShowDeleteConfirm(false);
+      loadTransactionData();
+      loadFilterStats();
+      
+      // Show success notification
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+    } catch (error) {
+      console.error('Error deleting transactions:', error);
+      alert('Error deleting transactions. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const getTotalSelectedAmount = () => {
+    let total = 0;
+    const allTransactions = [];
+    
+    if (showSearchResults) {
+      allTransactions.push(...searchResults);
+    } else {
+      monthlyGroups.forEach(group => {
+        allTransactions.push(...group.transactions);
+      });
+    }
+    
+    allTransactions.forEach(transaction => {
+      if (selectedTransactions.has(transaction.id)) {
+        total += transaction.amount;
+      }
+    });
+    
+    return total;
+  };
+
   const getSortOptions = () => [
     { value: 'date_desc', label: 'Newest first' },
     { value: 'date_asc', label: 'Oldest first' },
@@ -436,6 +515,40 @@ export default function TransactionsNew() {
         </div>
       </div>
 
+      {/* Bulk Selection Controls */}
+      {selectedTransactions.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                <span className="font-medium text-blue-900">
+                  {selectedTransactions.size} transaction{selectedTransactions.size !== 1 ? 's' : ''} selected
+                </span>
+                <span className="text-blue-700">
+                  Total: {getTotalSelectedAmount() >= 0 ? '+' : ''}{formatCAD(getTotalSelectedAmount())}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={clearSelection}
+                className="px-3 py-1.5 text-sm text-blue-700 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
+              >
+                Clear selection
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search and Filter Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
         <div className="p-6">
@@ -515,6 +628,15 @@ export default function TransactionsNew() {
             />
 
 
+            {/* Select All Button */}
+            <button
+              onClick={selectAllVisibleTransactions}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
+            >
+              <Check className="h-4 w-4" />
+              Select All
+            </button>
+
             {/* Active Filters Count */}
             {getActiveFiltersCount() > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium">
@@ -579,6 +701,8 @@ export default function TransactionsNew() {
                 <SearchResultRow
                   key={transaction.id}
                   transaction={transaction}
+                  isSelected={selectedTransactions.has(transaction.id)}
+                  onToggleSelection={() => toggleTransactionSelection(transaction.id)}
                 />
               ))
             ) : (
@@ -600,6 +724,9 @@ export default function TransactionsNew() {
               key={`${monthGroup.year}-${monthGroup.month}`}
               monthGroup={monthGroup}
               onUpdateCategory={updateTransactionCategory}
+              selectedTransactions={selectedTransactions}
+              onToggleSelection={toggleTransactionSelection}
+              onSelectAll={setSelectedTransactions}
             />
           ))}
 
@@ -631,12 +758,73 @@ export default function TransactionsNew() {
         />
       )}
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-red-100 rounded-full">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Delete Transactions</h3>
+                  <p className="text-sm text-gray-600">
+                    Are you sure you want to delete {selectedTransactions.size} transaction{selectedTransactions.size !== 1 ? 's' : ''}?
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="text-sm text-gray-700">
+                  <div className="font-medium mb-1">Selected transactions total:</div>
+                  <div className={`text-lg font-semibold ${
+                    getTotalSelectedAmount() >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {getTotalSelectedAmount() >= 0 ? '+' : ''}{formatCAD(getTotalSelectedAmount())}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={deleteSelectedTransactions}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Toast Notification */}
       {showSuccessToast && (
         <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
           <div className="bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-green-400"></div>
-            <span className="text-sm font-medium">Category updated successfully!</span>
+            <span className="text-sm font-medium">
+              {selectedTransactions.size > 0 ? 'Transactions deleted successfully!' : 'Category updated successfully!'}
+            </span>
             <button 
               onClick={() => setShowSuccessToast(false)}
               className="ml-2 text-gray-300 hover:text-white"
@@ -748,7 +936,7 @@ function FilterBadge({ icon, label, count, active, onClick }) {
 }
 
 // Monthly Group Component
-function MonthlyGroup({ monthGroup, onUpdateCategory }) {
+function MonthlyGroup({ monthGroup, onUpdateCategory, selectedTransactions, onToggleSelection, onSelectAll }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Month Header */}
@@ -768,10 +956,30 @@ function MonthlyGroup({ monthGroup, onUpdateCategory }) {
       {/* Column Headers */}
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="grid grid-cols-12 gap-4 px-6 py-3">
+          <div className="col-span-1 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center">
+            <input
+              type="checkbox"
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              checked={monthGroup.transactions.every(t => selectedTransactions.has(t.id)) && monthGroup.transactions.length > 0}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  const groupTransactionIds = new Set(monthGroup.transactions.map(t => t.id));
+                  onSelectAll(prev => new Set([...prev, ...groupTransactionIds]));
+                } else {
+                  const groupTransactionIds = new Set(monthGroup.transactions.map(t => t.id));
+                  onSelectAll(prev => {
+                    const newSet = new Set(prev);
+                    groupTransactionIds.forEach(id => newSet.delete(id));
+                    return newSet;
+                  });
+                }
+              }}
+            />
+          </div>
           <div className="col-span-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Date
           </div>
-          <div className="col-span-5 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div className="col-span-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Description
           </div>
           <div className="col-span-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
@@ -790,6 +998,8 @@ function MonthlyGroup({ monthGroup, onUpdateCategory }) {
             key={transaction.id}
             transaction={transaction}
             onUpdateCategory={onUpdateCategory}
+            isSelected={selectedTransactions.has(transaction.id)}
+            onToggleSelection={() => onToggleSelection(transaction.id)}
           />
         ))}
       </div>
@@ -798,7 +1008,7 @@ function MonthlyGroup({ monthGroup, onUpdateCategory }) {
 }
 
 // Search Result Row Component
-function SearchResultRow({ transaction }) {
+function SearchResultRow({ transaction, isSelected, onToggleSelection }) {
   const isCredit = transaction.amount > 0;
 
   const getCategoryStyle = (categoryName) => {
@@ -815,8 +1025,20 @@ function SearchResultRow({ transaction }) {
 
   return (
     <div 
-      className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors"
+      className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
+        isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+      }`}
     >
+      {/* Checkbox */}
+      <div className="flex-shrink-0">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggleSelection}
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+      </div>
+
       {/* Date */}
       <div className="flex-shrink-0 text-right min-w-[100px]">
         <div className="text-sm font-medium text-gray-900">
@@ -859,7 +1081,7 @@ function SearchResultRow({ transaction }) {
 
 
 // Transaction Row Component
-function TransactionRow({ transaction, onUpdateCategory }) {
+function TransactionRow({ transaction, onUpdateCategory, isSelected, onToggleSelection }) {
   const isCredit = transaction.is_credit;
 
   const getCategoryStyle = (categoryName) => {
@@ -876,8 +1098,20 @@ function TransactionRow({ transaction, onUpdateCategory }) {
 
   return (
     <div 
-      className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors"
+      className={`grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${
+        isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+      }`}
     >
+      {/* Checkbox */}
+      <div className="col-span-1 flex items-center">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggleSelection}
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+      </div>
+
       {/* Date */}
       <div className="col-span-2 flex items-center">
         <div className="text-sm font-medium text-gray-900">
@@ -890,7 +1124,7 @@ function TransactionRow({ transaction, onUpdateCategory }) {
       </div>
 
       {/* Name/Description */}
-      <div className="col-span-5 flex items-center min-w-0">
+      <div className="col-span-4 flex items-center min-w-0">
         <div className="truncate">
           <div className="text-sm font-medium text-gray-900 truncate">
             {toSentenceCase(transaction.description)}

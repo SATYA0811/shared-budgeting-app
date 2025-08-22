@@ -78,7 +78,7 @@ def get_bank_accounts(
             "bank_name": account.bank_name,
             "account_type": account.account_type or "bank",
             "account_number": account_display,
-            "balance": float(account.balance) if account.balance else 0.0,
+            "balance": float(account.balance) if account.balance else 0.0,  # Use stored balance from PDF
             "currency": "CAD",  # Default currency
             "status": "active",  # Default status
             "last_sync": datetime.now().isoformat(),

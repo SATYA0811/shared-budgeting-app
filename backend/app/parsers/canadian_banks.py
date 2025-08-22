@@ -13,55 +13,235 @@ Each parser handles the specific format and patterns used by these banks.
 """
 
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from decimal import Decimal
 from datetime import datetime
 
 
-def parse_cibc_transaction(line: str) -> Dict[str, Any]:
-    """Parse CIBC transaction line."""
-    # CIBC format: Date | Description | Debit | Credit | Balance
-    # Example: "Jan 15  GROCERY STORE PURCHASE     45.67         2,345.22"
+def clean_merchant_name(merchant_name: str) -> str:
+    """
+    Clean merchant name by removing location codes, reference numbers, and store IDs.
     
-    patterns = {
-        'date': r'([A-Za-z]{3}\s+\d{1,2})',  # Jan 15
-        'amount': r'(\d{1,3}(?:,\d{3})*\.\d{2})',  # 1,234.56
-        'description': r'([A-Z\s]+(?:PURCHASE|PAYMENT|TRANSFER|DEPOSIT|WITHDRAWAL|FEE))'
+    Examples:
+    - "PRESTO AUTO RELOAD 123456789" → "PRESTO AUTO"
+    - "WAL-MART SUPERCENTER#1007" → "WAL-MART SUPERCENTER"
+    - "UBER CANADA/UBEREATS*TRIP ABC123" → "UBER CANADA/UBEREATS"
+    - "STARBUCKS #1234 TORONTO" → "STARBUCKS"
+    - "TIM HORTONS #5678" → "TIM HORTONS"
+    """
+    if not merchant_name:
+        return merchant_name
+    
+    name = merchant_name.strip()
+    
+    # Pattern-based cleaning rules
+    patterns_to_remove = [
+        # Store/location numbers with # symbol
+        r'#\d+.*$',                          # "#1007", "#1234 TORONTO", etc.
+        
+        # Reference/transaction numbers (long digit sequences)
+        r'\s+\d{6,}.*$',                     # " 123456789" (6+ digits at end)
+        
+        # Location codes in parentheses
+        r'\s*\([^)]*\).*$',                  # " (LOCATION123)"
+        
+        # Specific patterns for known merchants
+        r'\*TRIP\s+[A-Z0-9]+.*$',           # Uber trip codes "*TRIP ABC123"
+        r'\*ORDER\s+[A-Z0-9]+.*$',          # Order codes "*ORDER XYZ789"
+        r'\s+REF\s*[:#]?\s*[A-Z0-9]+.*$',   # Reference numbers "REF: ABC123"
+        r'\s+TRANS\s*[:#]?\s*[A-Z0-9]+.*$', # Transaction IDs "TRANS: 123"
+        r'\s+AUTH\s*[:#]?\s*[A-Z0-9]+.*$',  # Auth codes "AUTH: 456"
+        
+        # City names (common Canadian cities) - only if at the end
+        r'\s+(TORONTO|MISSISSAUGA|OTTAWA|CALGARY|VANCOUVER|MONTREAL|WINNIPEG|KITCHENER|HAMILTON|LONDON|MARKHAM|VAUGHAN|RICHMOND|BURNABY|SASKATOON|HALIFAX|VICTORIA|WINDSOR|OSHAWA|GATINEAU|LONGUEUIL|SHERBROOKE|SAGUENAY|LEVIS|KELOWNA|ABBOTSFORD|COQUITLAM|TERREBONNE|SAANICH|RICHMOND HILL|THUNDER BAY|CAMBRIDGE|WATERLOO|GUELPH|SUDBURY|BRANTFORD|LAVAL)(\s+[A-Z]{2})?.*$',
+        
+        # Province codes at the end
+        r'\s+(ON|BC|AB|QC|MB|SK|NS|NB|PE|NL|YT|NT|NU).*$',
+        
+        # Phone numbers
+        r'\s+\d{3}[-.]?\d{3}[-.]?\d{4}.*$',  # Phone numbers
+        
+        # Postal codes (Canadian format)
+        r'\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d.*$',  # "K1A 0A6"
+    ]
+    
+    # Apply cleaning patterns
+    for pattern in patterns_to_remove:
+        name = re.sub(pattern, '', name, flags=re.IGNORECASE).strip()
+    
+    # Specific merchant name corrections
+    merchant_corrections = {
+        # Transit systems
+        'PRESTO AUTO RELOAD': 'PRESTO AUTO',
+        'PRESTO AUTOLOAD': 'PRESTO AUTO',
+        'PRESTO AUTO': 'PRESTO AUTO',
+        
+        # Common retailers
+        'WAL-MART SUPERCENTER': 'WAL-MART SUPERCENTER',
+        'WALMART SUPERCENTER': 'WALMART SUPERCENTER',
+        'CANADIAN TIRE': 'CANADIAN TIRE',
+        'METRO': 'METRO',
+        'LOBLAWS': 'LOBLAWS',
+        'SOBEYS': 'SOBEYS',
+        'NO FRILLS': 'NO FRILLS',
+        'FOOD BASICS': 'FOOD BASICS',
+        
+        # Coffee shops
+        'TIM HORTONS': 'TIM HORTONS',
+        'STARBUCKS': 'STARBUCKS',
+        'SECOND CUP': 'SECOND CUP',
+        
+        # Fast food
+        'MCDONALDS': 'MCDONALDS',
+        'SUBWAY': 'SUBWAY',
+        'PIZZA PIZZA': 'PIZZA PIZZA',
+        
+        # Gas stations
+        'PETRO CANADA': 'PETRO CANADA',
+        'SHELL': 'SHELL',
+        'ESSO': 'ESSO',
+        'HUSKY': 'HUSKY',
+        'MOBIL': 'MOBIL',
+        
+        # Services
+        'UBER CANADA/UBEREATS': 'UBER CANADA/UBEREATS',
+        'UBER EATS': 'UBER EATS',
+        'SKIP THE DISHES': 'SKIP THE DISHES',
+        'DOORDASH': 'DOORDASH',
     }
     
-    date_match = re.search(patterns['date'], line)
-    amount_matches = re.findall(patterns['amount'], line)
-    desc_match = re.search(patterns['description'], line)
+    # Check if the cleaned name starts with any known merchant
+    name_upper = name.upper()
+    for merchant_key, clean_name in merchant_corrections.items():
+        if name_upper.startswith(merchant_key.upper()):
+            return clean_name
     
-    if date_match and amount_matches and desc_match:
+    # Final cleanup: remove extra spaces and trim
+    name = re.sub(r'\s+', ' ', name).strip()
+    
+    # Remove trailing special characters
+    name = re.sub(r'[#*/-]+$', '', name).strip()
+    
+    return name
+
+
+def map_pdf_category_to_system_id(pdf_category: Optional[str]) -> Optional[int]:
+    """Map PDF category to system category ID."""
+    if not pdf_category:
+        return None
+    
+    # Mapping based on the current system categories
+    category_mapping = {
+        'restaurants': 2,      # Food & Drinks
+        'transportation': 3,   # Transport  
+        'grocery': 5,         # Groceries
+        'retail': 4,          # Shopping (for general retail)
+        'entertainment': 6,   # Entertainment
+        'gas': 3,             # Transport (gas stations)
+    }
+    
+    return category_mapping.get(pdf_category.lower())
+
+
+def parse_cibc_transaction(line: str) -> Dict[str, Any]:
+    """Parse CIBC credit card transaction line."""
+    # CIBC Credit Card format: Transaction_Date Processing_Date MERCHANT_NAME LOCATION CATEGORY Amount
+    # Example: "Jun 26 Jun 26 IMPARK00120172H 844-309-1028 ON Transportation 13.00"
+    # Example: "Jul 09 Jul 10 PAYMENT THANK YOU/PAIEMENT MERCI 347.71"
+    
+    line = line.strip()
+    if not line:
+        return None
+    
+    # Pattern for CIBC credit card transactions
+    # Format: MMM DD MMM DD MERCHANT_INFO... CATEGORY AMOUNT
+    pattern = r'^([A-Za-z]{3}\s+\d{1,2})\s+([A-Za-z]{3}\s+\d{1,2})\s+(.+?)\s+(\d{1,3}(?:,\d{3})*\.\d{2})$'
+    
+    match = re.match(pattern, line)
+    if match:
         try:
-            # Parse date (assume current year)
-            date_str = date_match.group(1)
+            transaction_date = match.group(1)  # e.g., "Jun 26"
+            processing_date = match.group(2)   # e.g., "Jun 26"
+            merchant_info = match.group(3).strip()  # Everything between dates and amount
+            amount_str = match.group(4)        # e.g., "13.00"
+            
+            # Parse date (use transaction date, assume current year)
             current_year = datetime.now().year
-            date_obj = datetime.strptime(f"{date_str} {current_year}", "%b %d %Y")
+            date_obj = datetime.strptime(f"{transaction_date} {current_year}", "%b %d %Y")
             
-            # Determine if debit or credit based on position
-            # CIBC typically shows: Description | Debit | Credit | Balance
-            amount_str = amount_matches[0].replace(',', '')
-            amount = float(amount_str)
+            # Parse amount
+            amount = float(amount_str.replace(',', ''))
             
-            # Check context to determine sign
-            if 'PURCHASE' in line or 'FEE' in line or 'WITHDRAWAL' in line:
-                amount = -abs(amount)
-            elif 'DEPOSIT' in line or 'PAYMENT' in line and 'CARD PAYMENT' not in line:
-                amount = abs(amount)
+            # Extract description and category from merchant info
+            parts = merchant_info.split()
+            
+            # For payments, the merchant info is clear
+            if 'PAYMENT' in merchant_info.upper():
+                description = 'PAYMENT'
+                amount = abs(amount)  # Payments are positive (credits)
+                category = None
             else:
-                # Default to negative for most transactions
-                amount = -abs(amount)
+                # For purchases, extract merchant name using spacing pattern
+                # Merchant name is separated from location by 2+ spaces
+                parts_by_spaces = re.split(r'\s{2,}', merchant_info)
                 
+                if len(parts_by_spaces) >= 2:
+                    # First part is the merchant name
+                    raw_description = parts_by_spaces[0].strip()
+                    location_info = ' '.join(parts_by_spaces[1:]).strip()
+                    
+                    # Clean the merchant name using our new function
+                    description = clean_merchant_name(raw_description)
+                else:
+                    # Fallback: split by words and find province code
+                    words = merchant_info.split()
+                    province_start = -1
+                    for i, word in enumerate(words):
+                        if word.upper() in ['ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NS', 'NB', 'PE', 'NL', 'YT', 'NT', 'NU']:
+                            province_start = i
+                            break
+                    
+                    if province_start > 1:
+                        # Assume last word before province is city, everything before is merchant
+                        merchant_words = words[:province_start-1]
+                        raw_description = ' '.join(merchant_words).strip()
+                        location_info = ' '.join(words[province_start-1:]).strip()
+                    else:
+                        # Last fallback: use first 3 words
+                        raw_description = ' '.join(words[:3]).strip()
+                        location_info = ' '.join(words[3:]).strip()
+                    
+                    # Clean the merchant name using our new function
+                    description = clean_merchant_name(raw_description)
+                
+                # Extract category from location_info
+                category = None
+                location_text = location_info.lower()
+                if 'restaurants' in location_text:
+                    category = 'restaurants'
+                elif 'transportation' in location_text:
+                    category = 'transportation'  
+                elif 'retail' in location_text and 'grocery' in location_text:
+                    category = 'grocery'
+                elif 'grocery' in location_text:
+                    category = 'grocery'
+                elif 'entertainment' in location_text:
+                    category = 'entertainment'
+                elif 'gas' in location_text:
+                    category = 'gas'
+                
+                amount = -abs(amount)  # Purchases are negative (debits)
+            
             return {
                 'date': date_obj,
-                'description': desc_match.group(1).strip(),
+                'description': description.strip(),
                 'amount': Decimal(str(amount)),
-                'bank': 'CIBC'
+                'bank': 'CIBC',
+                'pdf_category': category  # Add extracted category
             }
-        except Exception:
+        except Exception as e:
             return None
+    
     return None
 
 
@@ -282,11 +462,12 @@ def extract_account_info(text: str, bank_type: str) -> Dict[str, str]:
     }
     
     if bank_type == 'CIBC':
-        # CIBC patterns
-        # Account number patterns: "Account Number: 1234 5678 901", "****1234"
+        # CIBC patterns - including credit card formats
+        # Account number patterns: "Account Number: 1234 5678 901", "****1234", "4505 XXXX XXXX 7841"
         patterns = [
             r'ACCOUNT\s+NUMBER[:\s]*(\d{4}[\s-]*\d{4}[\s-]*\d{3,4})',
             r'ACCOUNT[:\s]*(\d{4}[\s-]*\d{4}[\s-]*\d{3,4})',
+            r'(\d{4})\s+X{4}\s+X{4}\s+(\d{4})',  # CIBC credit card format: "4505 XXXX XXXX 7841"
             r'\*{4}(\d{4})',
             r'(\d{4})\s*CHEQUING',
             r'(\d{4})\s*SAVINGS',
@@ -341,17 +522,97 @@ def extract_account_info(text: str, bank_type: str) -> Dict[str, str]:
     for pattern in patterns:
         match = re.search(pattern, text_upper)
         if match:
-            account_number = match.group(1)
-            # Clean up the account number
-            clean_number = re.sub(r'[\s-]', '', account_number)
-            account_info['account_number'] = clean_number
-            
-            # Extract last 4 digits
-            if len(clean_number) >= 4:
-                account_info['last_4_digits'] = clean_number[-4:]
+            # Handle special case for CIBC credit card format with two groups
+            if len(match.groups()) == 2 and 'X{4}' in pattern:
+                # This is the "4505 XXXX XXXX 7841" format
+                first_four = match.group(1)
+                last_four = match.group(2)
+                account_info['account_number'] = f"{first_four}XXXX{last_four}"
+                account_info['last_4_digits'] = last_four
+            else:
+                account_number = match.group(1)
+                # Clean up the account number
+                clean_number = re.sub(r'[\s-]', '', account_number)
+                account_info['account_number'] = clean_number
+                
+                # Extract last 4 digits
+                if len(clean_number) >= 4:
+                    account_info['last_4_digits'] = clean_number[-4:]
             break
     
     return account_info
+
+
+def extract_account_balance(text: str, bank_type: str) -> float:
+    """Extract current account balance from bank statement."""
+    text_upper = text.upper()
+    
+    if bank_type == 'CIBC':
+        # CIBC patterns for balance - ordered by priority (most specific first)
+        patterns = [
+            # Credit card specific patterns (highest priority)
+            r'TOTAL\s+BALANCE\s*=\s*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})CR',  # "$0.54CR"
+            r'TOTAL\s+BALANCE\s*=\s*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',     # "Total balance = $123.45"
+            r'AMOUNT\s+DUE[1-9]?\s*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',      # "Amount Due1 $0.00"
+            r'NEW\s+BALANCE[:\s]*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'CURRENT\s+BALANCE[:\s]*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'STATEMENT\s+BALANCE[:\s]*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            # Generic balance patterns (lower priority)
+            r'BALANCE[:\s]*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'ACCOUNT\s+BALANCE[:\s]*\$([+-]?\d{1,3}(?:,\d{3})*\.\d{2})'
+        ]
+        
+    elif bank_type == 'RBC':
+        # RBC patterns
+        patterns = [
+            r'CLOSING\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'CURRENT\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'ACCOUNT\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'NEW\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})'
+        ]
+        
+    elif bank_type == 'AMEX':
+        # AMEX patterns
+        patterns = [
+            r'NEW\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'CURRENT\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'ACCOUNT\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'TOTAL\s+BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})'
+        ]
+        
+    else:
+        # Generic patterns
+        patterns = [
+            r'BALANCE[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'CURRENT[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})',
+            r'TOTAL[:\s]*[\$\s]*([+-]?\d{1,3}(?:,\d{3})*\.\d{2})'
+        ]
+    
+    # Try to extract balance
+    for pattern in patterns:
+        matches = re.findall(pattern, text_upper)
+        if matches:
+            try:
+                # Take the first match (ordered by priority)
+                balance_str = matches[0].replace(',', '').replace('+', '')
+                balance = float(balance_str)
+                
+                # For credit cards, negative balance means you owe money
+                # Positive balance with CR means credit (you have money)
+                if 'CR' in pattern:
+                    # This is a credit balance - make it positive since it's what you have
+                    balance = abs(balance)
+                else:
+                    # For "Amount Due", this is what you owe, so keep it as debt
+                    if 'AMOUNT\\s+DUE' in pattern:
+                        balance = -abs(balance) if balance > 0 else 0  # Amount due is debt
+                
+                return balance
+            except (ValueError, IndexError):
+                continue
+    
+    # Default to 0 if no balance found
+    return 0.0
 
 
 def extract_statement_period(text: str) -> Dict[str, str]:
