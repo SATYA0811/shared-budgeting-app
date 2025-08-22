@@ -509,7 +509,7 @@ async def upload_and_extract_transactions(
         logging.info(f"Extracted account info: {account_info}")
         
         # Extract account balance from statement
-        account_balance = extract_account_balance(text_content, bank_type)
+        account_balance = extract_account_balance(text_content, bank_type, account_type)
         logging.info(f"Extracted account balance: ${account_balance:.2f}")
         
         # Create or find account if not provided
@@ -530,7 +530,7 @@ async def upload_and_extract_transactions(
                 existing_bank_account = db.query(BankAccount).filter(
                     BankAccount.user_id == current_user.id,
                     BankAccount.bank_name == bank_type,
-                    BankAccount.account_type == account_info['account_type'],
+                    BankAccount.account_type == account_type,  # Use detected account_type
                     BankAccount.account_number == f"****{account_info['last_4_digits']}"
                 ).first()
                 
@@ -540,17 +540,18 @@ async def upload_and_extract_transactions(
                         user_id=current_user.id,
                         household_id=current_user.id,  # Set household_id to user_id
                         bank_name=bank_type,
-                        account_type=account_info['account_type'],
+                        account_type=account_type,  # Use detected account_type
                         account_number=f"****{account_info['last_4_digits']}",
                         balance=account_balance  # Use extracted balance from PDF
                     )
                     db.add(new_bank_account)
-                    logging.info(f"Created new {account_info['account_type']} account {new_bank_account.id} for {bank_type} ending in {account_info['last_4_digits']}")
+                    logging.info(f"Created new {account_type} account {new_bank_account.id} for {bank_type} ending in {account_info['last_4_digits']}")
                 elif account_info['last_4_digits'] == '0000':
                     logging.warning(f"Skipping BankAccount creation - failed to extract valid account number from PDF")
                 else:
                     # Update existing bank account balance with latest from PDF
                     existing_bank_account.balance = account_balance
+                    db.commit()  # Commit the balance update
                     logging.info(f"Updated existing bank account balance to ${account_balance:.2f}")
                 
                 # Also create an Account record for transaction references
@@ -559,13 +560,13 @@ async def upload_and_extract_transactions(
                     'SAVINGS': AccountType.bank, 
                     'CREDIT': AccountType.card
                 }
-                account_type = account_type_map.get(account_info['account_type'], AccountType.bank)
-                account_name = f"{bank_type} {account_info['account_type'].title()}".strip()
+                mapped_account_type = account_type_map.get(account_type, AccountType.bank)  # Use detected account_type
+                account_name = f"{bank_type} {account_type.title()}".strip()  # Use detected account_type
                 
                 new_account = Account(
                     household_id=current_user.id,  # Using user_id as household_id for now
                     name=account_name,
-                    type=account_type,
+                    type=mapped_account_type,
                     last4=account_info['last_4_digits'],
                     currency='CAD'
                 )
@@ -573,7 +574,7 @@ async def upload_and_extract_transactions(
                 db.commit()
                 db.refresh(new_account)
                 account_id = new_account.id  # Use Account.id for transactions
-                logging.info(f"Created new {account_info['account_type']} account {account_id} for {bank_type} ending in {account_info['last_4_digits']}")
+                logging.info(f"Created new {account_type} account {account_id} for {bank_type} ending in {account_info['last_4_digits']}")
         
         # Parse transactions
         parsed_transactions = parse_canadian_bank_transactions(text_content)
