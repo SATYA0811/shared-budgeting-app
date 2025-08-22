@@ -28,11 +28,31 @@ def clean_merchant_name(merchant_name: str) -> str:
     - "UBER CANADA/UBEREATS*TRIP ABC123" → "UBER CANADA/UBEREATS"
     - "STARBUCKS #1234 TORONTO" → "STARBUCKS"
     - "TIM HORTONS #5678" → "TIM HORTONS"
+    - "INTERNET TRANSFER 000000101667" → "INTERNET TRANSFER"
     """
     if not merchant_name:
         return merchant_name
     
     name = merchant_name.strip()
+    
+    # Special cases: Banking transactions that should preserve their type
+    banking_patterns = [
+        r'^(INTERNET\s+TRANSFER|E-TRANSFER|ETRANSFER|WIRE\s+TRANSFER|ACH\s+TRANSFER|ONLINE\s+TRANSFER)',
+        r'^(PAYROLL\s+DEPOSIT|DIRECT\s+DEPOSIT|SALARY\s+DEPOSIT)',
+        r'^(SERVICE\s+CHARGE|MONTHLY\s+FEE|OVERDRAFT\s+FEE)',
+        r'^(BILL\s+PAYMENT|TELEPHONE\s+BILL|MISC\s+PAYMENT)'
+    ]
+    
+    # Check if this is a banking transaction
+    for pattern in banking_patterns:
+        match = re.match(pattern, name, re.IGNORECASE)
+        if match:
+            # For banking transactions, just remove reference numbers at the end
+            # but preserve the transaction type
+            transaction_type = match.group(1)
+            # Remove reference numbers (6+ digits) at the end only
+            cleaned = re.sub(r'\s+\d{6,}.*$', '', name).strip()
+            return cleaned
     
     # Pattern-based cleaning rules
     patterns_to_remove = [
@@ -52,6 +72,14 @@ def clean_merchant_name(merchant_name: str) -> str:
         r'\s+TRANS\s*[:#]?\s*[A-Z0-9]+.*$', # Transaction IDs "TRANS: 123"
         r'\s+AUTH\s*[:#]?\s*[A-Z0-9]+.*$',  # Auth codes "AUTH: 456"
         
+        # Impark specific patterns
+        r'\d{8}H.*$',                       # Impark codes like "00120172H"
+        r'\d{7,}[A-Z].*$',                  # Similar patterns with letter suffix
+        
+        # General number patterns (more aggressive)
+        r'\d{5,}.*$',                       # 5+ consecutive digits anywhere
+        r'\s+\d{3,4}\s*[A-Z]*\s*$',       # 3-4 digits at end with optional letters
+        
         # City names (common Canadian cities) - only if at the end
         r'\s+(TORONTO|MISSISSAUGA|OTTAWA|CALGARY|VANCOUVER|MONTREAL|WINNIPEG|KITCHENER|HAMILTON|LONDON|MARKHAM|VAUGHAN|RICHMOND|BURNABY|SASKATOON|HALIFAX|VICTORIA|WINDSOR|OSHAWA|GATINEAU|LONGUEUIL|SHERBROOKE|SAGUENAY|LEVIS|KELOWNA|ABBOTSFORD|COQUITLAM|TERREBONNE|SAANICH|RICHMOND HILL|THUNDER BAY|CAMBRIDGE|WATERLOO|GUELPH|SUDBURY|BRANTFORD|LAVAL)(\s+[A-Z]{2})?.*$',
         
@@ -60,6 +88,9 @@ def clean_merchant_name(merchant_name: str) -> str:
         
         # Phone numbers
         r'\s+\d{3}[-.]?\d{3}[-.]?\d{4}.*$',  # Phone numbers
+        
+        # Contact info patterns
+        r'\s+\d{3}[-.]?\d{3}[-.]?\d{4}.*$',  # Phone: 844-309-1028
         
         # Postal codes (Canadian format)
         r'\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d.*$',  # "K1A 0A6"
@@ -76,43 +107,82 @@ def clean_merchant_name(merchant_name: str) -> str:
         'PRESTO AUTOLOAD': 'PRESTO AUTO',
         'PRESTO AUTO': 'PRESTO AUTO',
         
+        # Parking services
+        'IMPARK': 'IMPARK',
+        'DIAMOND PARKING': 'DIAMOND PARKING',
+        'EASYPARK': 'EASYPARK',
+        'PARK PLUS': 'PARK PLUS',
+        
+        # Warehouse stores
+        'COSTCO WHOLESALE': 'COSTCO',
+        'COSTCO': 'COSTCO',
+        'COSTCO GAS': 'COSTCO GAS',
+        'COSTCO GASOLINE': 'COSTCO GAS',
+        'COSTCO FUEL': 'COSTCO GAS',
+        
         # Common retailers
         'WAL-MART SUPERCENTER': 'WAL-MART SUPERCENTER',
         'WALMART SUPERCENTER': 'WALMART SUPERCENTER',
+        'WAL-MART': 'WAL-MART',
+        'WALMART': 'WALMART',
         'CANADIAN TIRE': 'CANADIAN TIRE',
         'METRO': 'METRO',
         'LOBLAWS': 'LOBLAWS',
         'SOBEYS': 'SOBEYS',
         'NO FRILLS': 'NO FRILLS',
         'FOOD BASICS': 'FOOD BASICS',
+        'REAL CANADIAN SUPERSTORE': 'REAL CANADIAN SUPERSTORE',
+        'SUPERSTORE': 'SUPERSTORE',
         
         # Coffee shops
         'TIM HORTONS': 'TIM HORTONS',
         'STARBUCKS': 'STARBUCKS',
         'SECOND CUP': 'SECOND CUP',
+        'COFFEE TIME': 'COFFEE TIME',
         
         # Fast food
         'MCDONALDS': 'MCDONALDS',
         'SUBWAY': 'SUBWAY',
         'PIZZA PIZZA': 'PIZZA PIZZA',
+        'BURGER KING': 'BURGER KING',
+        'KFC': 'KFC',
+        'TACO BELL': 'TACO BELL',
+        'A&W': 'A&W',
         
         # Gas stations
         'PETRO CANADA': 'PETRO CANADA',
+        'PETRO-CANADA': 'PETRO CANADA',
         'SHELL': 'SHELL',
         'ESSO': 'ESSO',
         'HUSKY': 'HUSKY',
         'MOBIL': 'MOBIL',
+        'ULTRAMAR': 'ULTRAMAR',
+        'PIONEER': 'PIONEER',
         
         # Services
         'UBER CANADA/UBEREATS': 'UBER CANADA/UBEREATS',
         'UBER EATS': 'UBER EATS',
         'SKIP THE DISHES': 'SKIP THE DISHES',
         'DOORDASH': 'DOORDASH',
+        'INSTACART': 'INSTACART',
+        
+        # Pharmacies
+        'SHOPPERS DRUG MART': 'SHOPPERS DRUG MART',
+        'REXALL': 'REXALL',
+        'PHARMASAVE': 'PHARMASAVE',
+        
+        # Electronics
+        'BEST BUY': 'BEST BUY',
+        'FUTURE SHOP': 'FUTURE SHOP',
+        'THE SOURCE': 'THE SOURCE',
     }
     
     # Check if the cleaned name starts with any known merchant
+    # Sort by length (longest first) to match more specific patterns first
     name_upper = name.upper()
-    for merchant_key, clean_name in merchant_corrections.items():
+    sorted_merchants = sorted(merchant_corrections.items(), key=lambda x: len(x[0]), reverse=True)
+    
+    for merchant_key, clean_name in sorted_merchants:
         if name_upper.startswith(merchant_key.upper()):
             return clean_name
     
@@ -132,15 +202,151 @@ def map_pdf_category_to_system_id(pdf_category: Optional[str]) -> Optional[int]:
     
     # Mapping based on the current system categories
     category_mapping = {
-        'restaurants': 2,      # Food & Drinks
-        'transportation': 3,   # Transport  
-        'grocery': 5,         # Groceries
-        'retail': 4,          # Shopping (for general retail)
-        'entertainment': 6,   # Entertainment
-        'gas': 3,             # Transport (gas stations)
+        'restaurants': 2,           # Food & Drinks
+        'transportation': 3,        # Transport  
+        'grocery': 5,              # Groceries
+        'retail': 4,               # Shopping (for general retail)
+        'entertainment': 6,        # Entertainment
+        'gas': 3,                  # Transport (gas stations)
+        'etransfer': 27,           # Interac E-Transfer
+        'etransfer_self': 28,      # Interac E-Transfer Self
+        'e-transfer': 27,          # Interac E-Transfer
+        'e-transfer_self': 28,     # Interac E-Transfer Self
     }
     
     return category_mapping.get(pdf_category.lower())
+
+
+def auto_categorize_transaction(description: str, amount: float, bank: str) -> Optional[int]:
+    """Automatically categorize transaction based on description and context."""
+    description_upper = description.upper()
+    
+    # E-Transfer categorization
+    if 'E-TRANSFER' in description_upper or 'ETRANSFER' in description_upper:
+        # Check if it's a self-transfer (to/from same person or between accounts)
+        self_indicators = [
+            'SATYA', 'SANNIHITH', 'LINGUTLA',  # User's name
+            'SELF', 'MYSELF', 'OWN ACCOUNT',
+            'SAVINGS', 'CHECKING', 'ACCOUNT',
+            'TRANSFER TO', 'TRANSFER FROM'
+        ]
+        
+        # Check if it's from/to the same person (self-transfer)
+        if any(indicator in description_upper for indicator in self_indicators):
+            return 28  # Interac E-Transfer Self
+        else:
+            return 27  # Interac E-Transfer
+    
+    # Internet Transfer categorization (typically self-transfers)
+    if 'INTERNET TRANSFER' in description_upper:
+        return 28  # Interac E-Transfer Self
+    
+    # Service charges and fees
+    if any(keyword in description_upper for keyword in ['SERVICE CHARGE', 'FEE', 'MONTHLY']):
+        return 13  # Bills
+    
+    # Payroll deposits
+    if any(keyword in description_upper for keyword in ['PAYROLL', 'SALARY', 'WAGE']):
+        return 1  # Income
+    
+    # Bill payments
+    if any(keyword in description_upper for keyword in ['BILL', 'PAYMENT', 'PYMT']):
+        return 13  # Bills
+    
+    # Phone/telecom
+    if any(keyword in description_upper for keyword in ['FIDO', 'ROGERS', 'BELL', 'TELUS', 'PHONE']):
+        return 13  # Bills
+    
+    # Utilities
+    if any(keyword in description_upper for keyword in ['HYDRO', 'ELECTRIC', 'GAS', 'WATER', 'UTILITIES']):
+        return 13  # Bills
+    
+    return None  # No automatic categorization
+
+
+def parse_cibc_checking_transaction(line: str) -> Dict[str, Any]:
+    """Parse CIBC checking account transaction line."""
+    # CIBC Checking format: Date Description Withdrawals ($) Deposits ($) Balance ($)
+    # BUT the actual format is more complex with amounts embedded in description
+    # Example: "Jul 4 E-TRANSFER        011359544971 SATYA SANNIHITH LINGUTLA.597.00 1,125.40"
+    # Example: "Jul 9 INTERNET TRANSFER 000000101667 347.71 642.69"
+    
+    line = line.strip()
+    if not line or line.startswith('Date') or 'Balance forward' in line or 'Opening balance' in line or 'Closing balance' in line:
+        return None
+    
+    # First, try to extract date at the beginning
+    date_pattern = r'^([A-Za-z]{3}\s+\d{1,2})\s+(.+)'
+    date_match = re.match(date_pattern, line)
+    
+    if not date_match:
+        return None
+    
+    try:
+        date_str = date_match.group(1)
+        rest_of_line = date_match.group(2).strip()
+        
+        # Parse date (assume current year)
+        current_year = datetime.now().year
+        date_obj = datetime.strptime(f"{date_str} {current_year}", "%b %d %Y")
+        
+        # Find all monetary amounts in the line
+        amount_pattern = r'(\d{1,3}(?:,\d{3})*\.\d{2})'
+        amounts = re.findall(amount_pattern, rest_of_line)
+        
+        if len(amounts) < 2:
+            return None  # Need at least transaction amount and balance
+        
+        # The last amount is always the balance, the second-to-last is the transaction amount
+        transaction_amount = float(amounts[-2].replace(',', ''))
+        balance = float(amounts[-1].replace(',', ''))
+        
+        # Extract description by removing amounts from the end
+        description_part = rest_of_line
+        for amount in reversed(amounts[-2:]):  # Remove last two amounts
+            # Only remove the amount if it's at the end or followed by whitespace
+            if description_part.endswith(amount):
+                description_part = description_part[:-len(amount)].strip()
+            else:
+                # More careful replacement - look for the amount at word boundaries
+                pattern = r'\b' + re.escape(amount) + r'\b'
+                description_part = re.sub(pattern, '', description_part).strip()
+        
+        # Determine if this is a deposit or withdrawal based on keywords
+        description_upper = description_part.upper()
+        deposit_keywords = ['DEPOSIT', 'E-TRANSFER', 'PAYROLL', 'TRANSFER IN']
+        withdrawal_keywords = ['INTERNET TRANSFER', 'PREAUTHORIZED DEBIT', 'SERVICE CHARGE', 'FEE']
+        
+        if any(keyword in description_upper for keyword in deposit_keywords):
+            amount = abs(transaction_amount)  # Deposit (positive)
+        elif any(keyword in description_upper for keyword in withdrawal_keywords):
+            amount = -abs(transaction_amount)  # Withdrawal (negative)
+        else:
+            # Default logic: if description contains names, likely a transfer out
+            if any(name in description_upper for name in ['SATYA', 'LINGUTLA', 'KUMARESH', 'BHIMESWARA', 'YASH', 'ARJUN']):
+                amount = abs(transaction_amount)  # Transfer in (positive)
+            else:
+                amount = -abs(transaction_amount)  # Default to withdrawal
+        
+        # Clean description using our merchant cleaning function
+        description = clean_merchant_name(description_part)
+        
+        # Auto-categorize the transaction
+        category_id = auto_categorize_transaction(description, amount, 'CIBC')
+        
+        return {
+            'date': date_obj,
+            'description': description,
+            'amount': Decimal(str(amount)),
+            'bank': 'CIBC',
+            'account_type': 'CHECKING',
+            'pdf_category': None,
+            'auto_category_id': category_id
+        }
+    except Exception as e:
+        return None
+    
+    return None
 
 
 def parse_cibc_transaction(line: str) -> Dict[str, Any]:
@@ -238,6 +444,67 @@ def parse_cibc_transaction(line: str) -> Dict[str, Any]:
                 'amount': Decimal(str(amount)),
                 'bank': 'CIBC',
                 'pdf_category': category  # Add extracted category
+            }
+        except Exception as e:
+            return None
+    
+    return None
+
+
+def parse_rbc_checking_transaction(line: str) -> Dict[str, Any]:
+    """Parse RBC checking account transaction line."""
+    # RBC Checking format: DATE DESCRIPTION WITHDRAWALS DEPOSITS BALANCE
+    # Example: "Jul 15, 2025 to Find & Save - $75.00 $1,417.86"
+    # Example: "Jul 4, 2025Payroll Deposit The Wawanesa Mu$2,567.28"
+    
+    line = line.strip()
+    if not line or line.startswith('DATE') or 'about:blank' in line:
+        return None
+    
+    # Pattern for RBC checking transactions
+    # Format: MMM DD, YYYY DESCRIPTION - $AMOUNT $BALANCE or MMM DD, YYYY DESCRIPTION $AMOUNT
+    pattern = r'^([A-Za-z]{3}\s+\d{1,2},\s+\d{4})\s*(.+?)(?:-\s*)?\$(\d{1,3}(?:,\d{3})*\.\d{2})\s*(?:\$(\d{1,3}(?:,\d{3})*\.\d{2}))?'
+    
+    match = re.search(pattern, line)
+    if match:
+        try:
+            date_str = match.group(1)
+            description_raw = match.group(2).strip()
+            amount_value = float(match.group(3).replace(',', ''))
+            balance = float(match.group(4).replace(',', '')) if match.group(4) else 0
+            
+            # Parse date
+            date_obj = datetime.strptime(date_str, "%b %d, %Y")
+            
+            # Determine if this is a deposit or withdrawal based on description and format
+            deposit_keywords = ['DEPOSIT', 'PAYROLL', 'E-TRANSFER RECEIVED', 'TRANSFER FROM']
+            withdrawal_keywords = ['WITHDRAW', 'PAYMENT', 'FEE', 'TRANSFER TO', 'E-TRANSFER SENT']
+            
+            description_upper = description_raw.upper()
+            
+            if any(keyword in description_upper for keyword in deposit_keywords):
+                amount = abs(amount_value)  # Deposit (positive)
+            elif any(keyword in description_upper for keyword in withdrawal_keywords):
+                amount = -abs(amount_value)  # Withdrawal (negative)
+            elif '-' in line:  # Line has dash, indicating withdrawal
+                amount = -abs(amount_value)
+            else:  # Default to deposit if no clear indication
+                amount = abs(amount_value)
+            
+            # Clean description using our merchant cleaning function
+            description = clean_merchant_name(description_raw)
+            
+            # Auto-categorize the transaction
+            category_id = auto_categorize_transaction(description, amount, 'RBC')
+            
+            return {
+                'date': date_obj,
+                'description': description,
+                'amount': Decimal(str(amount)),
+                'bank': 'RBC',
+                'account_type': 'CHECKING',
+                'pdf_category': None,
+                'auto_category_id': category_id
             }
         except Exception as e:
             return None
@@ -365,35 +632,69 @@ def parse_td_transaction(line: str) -> Dict[str, Any]:
     return None
 
 
-def detect_canadian_bank(text: str) -> str:
-    """Detect which Canadian bank format the text uses."""
+def detect_canadian_bank(text: str) -> tuple:
+    """Detect which Canadian bank format and account type the text uses."""
     text_upper = text.upper()
     
-    if 'CIBC' in text_upper or 'CANADIAN IMPERIAL BANK' in text_upper:
-        return 'CIBC'
-    elif 'ROYAL BANK' in text_upper or 'RBC' in text_upper:
-        return 'RBC'
-    elif 'AMERICAN EXPRESS' in text_upper or 'AMEX' in text_upper:
-        return 'AMEX'
-    elif 'TD CANADA TRUST' in text_upper or 'TD BANK' in text_upper:
-        return 'TD'
-    elif 'BANK OF MONTREAL' in text_upper or 'BMO' in text_upper:
-        return 'BMO'
-    elif 'SCOTIABANK' in text_upper or 'SCOTIA' in text_upper:
-        return 'SCOTIA'
-    elif 'TANGERINE' in text_upper:
-        return 'TANGERINE'
+    # Detect bank
+    bank = 'UNKNOWN'
+    account_type = 'UNKNOWN'
     
-    return 'UNKNOWN'
+    if 'CIBC' in text_upper or 'CANADIAN IMPERIAL BANK' in text_upper:
+        bank = 'CIBC'
+        # Detect account type for CIBC
+        if ('ACCOUNT STATEMENT' in text_upper and ('WITHDRAWALS' in text_upper or 'DEPOSITS' in text_upper)) or \
+           'CHEQUING' in text_upper or 'CHECKING' in text_upper or \
+           ('INTERNET TRANSFER' in text_upper and 'E-TRANSFER' in text_upper):
+            account_type = 'CHECKING'
+        elif 'CREDIT CARD' in text_upper or 'VISA' in text_upper or \
+             ('PURCHASE' in text_upper and 'PAYMENT' in text_upper):
+            account_type = 'CREDIT'
+        else:
+            account_type = 'CHECKING'  # Default for CIBC (most common)
+            
+    elif 'ROYAL BANK' in text_upper or 'RBC' in text_upper:
+        bank = 'RBC'
+        # Detect account type for RBC
+        if 'DAY TO DAY BANKING' in text_upper or 'PERSONAL DEPOSIT ACCOUNT' in text_upper or \
+           'CHEQUING' in text_upper or 'CHECKING' in text_upper or \
+           ('E-TRANSFER' in text_upper and 'PAYROLL' in text_upper):
+            account_type = 'CHECKING'
+        elif 'CREDIT CARD' in text_upper or 'VISA' in text_upper or 'MASTERCARD' in text_upper:
+            account_type = 'CREDIT'
+        else:
+            account_type = 'CHECKING'  # Default for RBC
+            
+    elif 'AMERICAN EXPRESS' in text_upper or 'AMEX' in text_upper:
+        bank = 'AMEX'
+        account_type = 'CREDIT'  # AMEX is always credit
+        
+    elif 'TD CANADA TRUST' in text_upper or 'TD BANK' in text_upper:
+        bank = 'TD'
+        account_type = 'CHECKING'  # Default for TD
+        
+    elif 'BANK OF MONTREAL' in text_upper or 'BMO' in text_upper:
+        bank = 'BMO'
+        account_type = 'CHECKING'  # Default for BMO
+        
+    elif 'SCOTIABANK' in text_upper or 'SCOTIA' in text_upper:
+        bank = 'SCOTIA'
+        account_type = 'CHECKING'  # Default for Scotia
+        
+    elif 'TANGERINE' in text_upper:
+        bank = 'TANGERINE'
+        account_type = 'CHECKING'  # Default for Tangerine
+    
+    return bank, account_type
 
 
 def parse_canadian_bank_transactions(text: str) -> List[Dict[str, Any]]:
     """
     Parse transactions from Canadian bank statements.
-    Auto-detects bank type and applies appropriate parser.
+    Auto-detects bank type and account type, then applies appropriate parser.
     """
     transactions = []
-    bank_type = detect_canadian_bank(text)
+    bank_type, account_type = detect_canadian_bank(text)
     
     lines = text.split('\n')
     
@@ -404,17 +705,25 @@ def parse_canadian_bank_transactions(text: str) -> List[Dict[str, Any]]:
             
         transaction = None
         
+        # Choose parser based on bank and account type
         if bank_type == 'CIBC':
-            transaction = parse_cibc_transaction(line)
+            if account_type == 'CHECKING':
+                transaction = parse_cibc_checking_transaction(line)
+            else:  # CREDIT or unknown
+                transaction = parse_cibc_transaction(line)
         elif bank_type == 'RBC':
-            transaction = parse_rbc_transaction(line)
+            if account_type == 'CHECKING':
+                transaction = parse_rbc_checking_transaction(line)
+            else:  # CREDIT or unknown
+                transaction = parse_rbc_transaction(line)
         elif bank_type == 'AMEX':
             transaction = parse_amex_canada_transaction(line)
         elif bank_type == 'TD':
             transaction = parse_td_transaction(line)
         else:
             # Try all parsers if bank type unknown
-            for parser in [parse_cibc_transaction, parse_rbc_transaction, 
+            for parser in [parse_cibc_checking_transaction, parse_cibc_transaction, 
+                          parse_rbc_checking_transaction, parse_rbc_transaction,
                           parse_amex_canada_transaction, parse_td_transaction]:
                 transaction = parser(line)
                 if transaction:
@@ -451,7 +760,7 @@ def parse_canadian_date_formats(date_str: str) -> datetime:
     raise ValueError(f"Unable to parse date: {date_str}")
 
 
-def extract_account_info(text: str, bank_type: str) -> Dict[str, str]:
+def extract_account_info(text: str, bank_type: str, account_type: str = None) -> Dict[str, str]:
     """Extract account information from bank statement text."""
     text_upper = text.upper()
     account_info = {

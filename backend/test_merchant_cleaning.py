@@ -18,6 +18,19 @@ def test_merchant_cleaning():
         ("WAL-MART SUPERCENTER#1007", "WAL-MART SUPERCENTER"),
         ("WALMART SUPERCENTER#1007KITCHENER", "WALMART SUPERCENTER"),
         
+        # Costco patterns
+        ("COSTCO WHOLESALE#123", "COSTCO"),
+        ("COSTCO#456 MISSISSAUGA", "COSTCO"),
+        ("COSTCO GAS#789", "COSTCO GAS"),
+        ("COSTCO GASOLINE 12345", "COSTCO GAS"),
+        ("COSTCO FUEL STATION 67890", "COSTCO GAS"),
+        
+        # Impark patterns
+        ("IMPARK00120172H 844-309-1028 ON", "IMPARK"),
+        ("IMPARK12345678H TORONTO", "IMPARK"),
+        ("IMPARK 987654321", "IMPARK"),
+        ("DIAMOND PARKING 12345", "DIAMOND PARKING"),
+        
         # Store numbers and locations
         ("TIM HORTONS #5678", "TIM HORTONS"),
         ("STARBUCKS #1234 TORONTO", "STARBUCKS"),
@@ -37,6 +50,11 @@ def test_merchant_cleaning():
         ("SHELL 123456789", "SHELL"),
         ("PETRO CANADA 987654", "PETRO CANADA"),
         
+        # More aggressive number removal
+        ("BEST BUY 12345", "BEST BUY"),
+        ("SHOPPERS DRUG MART 98765", "SHOPPERS DRUG MART"),
+        ("REAL CANADIAN SUPERSTORE 1234", "REAL CANADIAN SUPERSTORE"),
+        
         # Complex cases
         ("YASEENS SHAWARMA & GRIL#123 KITCHENER ON", "YASEENS SHAWARMA & GRIL"),
         ("SECOND CUP #789 WATERLOO 519-555-9999", "SECOND CUP"),
@@ -54,6 +72,11 @@ def test_merchant_cleaning():
         # Postal codes
         ("FOOD BASICS K1A 0A6", "FOOD BASICS"),
         ("HUSKY M5V 3A8 TORONTO", "HUSKY"),
+        
+        # Gas stations
+        ("PETRO-CANADA 1234", "PETRO CANADA"),
+        ("ULTRAMAR 5678", "ULTRAMAR"),
+        ("PIONEER GAS 9876", "PIONEER"),
     ]
     
     print("🧪 Testing Merchant Name Cleaning")

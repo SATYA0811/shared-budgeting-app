@@ -109,6 +109,7 @@ def create_bank_account(
     # Create account
     account = BankAccount(
         user_id=current_user.id,
+        household_id=current_user.id,  # Set household_id to user_id
         bank_name=bank_name,
         account_type=account_type,
         account_number=account_number_last4,  # Store in account_number field

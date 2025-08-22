@@ -492,9 +492,9 @@ async def upload_and_extract_transactions(
         
         logging.info(f"Total extracted text length: {len(text_content)} characters")
         
-        # Detect bank type
-        bank_type = detect_canadian_bank(text_content)
-        logging.info(f"Detected bank type: {bank_type}")
+        # Detect bank type and account type
+        bank_type, account_type = detect_canadian_bank(text_content)
+        logging.info(f"Detected bank type: {bank_type}, account type: {account_type}")
         
         if bank_type == 'UNKNOWN':
             # Provide more helpful error message with text sample
@@ -505,7 +505,7 @@ async def upload_and_extract_transactions(
             )
         
         # Extract account information from statement
-        account_info = extract_account_info(text_content, bank_type)
+        account_info = extract_account_info(text_content, bank_type, account_type)
         logging.info(f"Extracted account info: {account_info}")
         
         # Extract account balance from statement
@@ -534,16 +534,20 @@ async def upload_and_extract_transactions(
                     BankAccount.account_number == f"****{account_info['last_4_digits']}"
                 ).first()
                 
-                if not existing_bank_account:
-                    # Create new bank account with extracted info and balance
+                if not existing_bank_account and account_info['last_4_digits'] != '0000':
+                    # Only create new bank account if we have valid account digits (not fallback '0000')
                     new_bank_account = BankAccount(
                         user_id=current_user.id,
+                        household_id=current_user.id,  # Set household_id to user_id
                         bank_name=bank_type,
                         account_type=account_info['account_type'],
                         account_number=f"****{account_info['last_4_digits']}",
                         balance=account_balance  # Use extracted balance from PDF
                     )
                     db.add(new_bank_account)
+                    logging.info(f"Created new {account_info['account_type']} account {new_bank_account.id} for {bank_type} ending in {account_info['last_4_digits']}")
+                elif account_info['last_4_digits'] == '0000':
+                    logging.warning(f"Skipping BankAccount creation - failed to extract valid account number from PDF")
                 else:
                     # Update existing bank account balance with latest from PDF
                     existing_bank_account.balance = account_balance
